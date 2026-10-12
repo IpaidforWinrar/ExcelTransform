@@ -23,8 +23,7 @@ Das Ergebnis wird als `Auswertung Benutzergruppen_bearbeitet.xlsx` gespeichert. 
 ## Zuordnungspaare (zuordnung.py)
 
 Vergleicht Spalte A (IT 1 bis IT 6, "IT-Leitung + Stab", "übergreifend") mit Spalte B ab Zeile 3
-und gibt eine Exceltabelle mit einer Spalte pro Bereich aus. Die Extraspalte "doppelt" listet
-Begriffe, die mehrfach vorkommen, mit ihren Bereichen, z. B. `Gruppe X → IT 1, IT 3`.
+und gibt eine Exceltabelle mit einer Spalte pro Bereich aus.
 
 ```bash
 python zuordnung.py
@@ -32,3 +31,16 @@ python zuordnung.py
 
 Ohne Argument wird `test.xlsx` aus dem Ordner des Skripts gelesen und das Ergebnis als
 `test_Zuordnung.xlsx` gespeichert. Eine andere Datei kann als Argument angegeben werden.
+
+## Abgleich mit matching.xlsx (abgleich.py)
+
+Vergleicht `test_Zuordnung.xlsx` mit `matching.xlsx` (ab Zeile 2: Spalte A = Begriff,
+Spalte F = Bereich). Beide Dateien müssen im Ordner des Skripts liegen.
+
+```bash
+python abgleich.py
+```
+
+Ergebnis ist `Abgleich.xlsx` mit einer Zeile pro Paar und dem Status "in beiden",
+"nur in test_Zuordnung" oder "nur in matching". Fehlt ein Paar in einer Liste, zeigt die
+Spalte "In der anderen Liste bei", welchem Bereich der Begriff dort zugeordnet ist.

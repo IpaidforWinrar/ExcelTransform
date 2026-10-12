@@ -5,9 +5,7 @@ Spalte A enthält die Bereiche (IT 1 bis IT 6, "IT-Leitung + Stab", "übergreife
 Spalte B die zugeordneten Begriffe.
 
 Ausgabe ist eine neue Exceltabelle mit einer Spalte pro Bereich, darunter alle Begriffe,
-die diesem Bereich zugeordnet sind. Die Extraspalte "doppelt" listet jeden Begriff,
-der mehr als einmal vorkommt, zusammen mit den Bereichen, denen er zugeordnet ist,
-z. B. "Gruppe X → IT 1, IT 3" oder "Gruppe Y → IT 2 (2x)".
+die diesem Bereich zugeordnet sind.
 
 Aufruf:
     python zuordnung.py [Eingabedatei] [Ausgabedatei]
@@ -18,7 +16,7 @@ Ohne Ausgabedatei wird "<Eingabedatei>_Zuordnung.xlsx" gespeichert.
 
 import re
 import sys
-from collections import Counter, defaultdict
+from collections import defaultdict
 from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
@@ -76,36 +74,20 @@ def read_pairs(input_path: Path):
 def build_output(pairs, output_path: Path):
     # Begriffe pro Bereich, ohne Wiederholungen, in der Reihenfolge des Auftretens
     per_bereich = defaultdict(list)
-    # Wie oft kommt ein Begriff in welchem Bereich vor?
-    vorkommen = defaultdict(Counter)
-
     for bereich, begriff in pairs:
         if begriff not in per_bereich[bereich]:
             per_bereich[bereich].append(begriff)
-        vorkommen[begriff][bereich] += 1
 
     # Unbekannte Bereiche gehen nicht verloren, sondern bekommen eigene Spalten
     unbekannt = [b for b in per_bereich if b not in BEREICHE]
     spalten = BEREICHE + unbekannt
 
-    doppelt = []
-    for begriff, counter in vorkommen.items():
-        if sum(counter.values()) < 2:
-            continue
-        teile = [
-            f"{bereich} ({anzahl}x)" if anzahl > 1 else bereich
-            for bereich, anzahl in sorted(counter.items(), key=lambda kv: spalten.index(kv[0]))
-        ]
-        doppelt.append(f"{begriff} → {', '.join(teile)}")
-
     wb = Workbook()
     ws = wb.active
     ws.title = "Zuordnung"
 
-    headers = spalten + ["doppelt"]
-    columns = [per_bereich[b] for b in spalten] + [doppelt]
-
-    for col_idx, (header, values) in enumerate(zip(headers, columns), start=1):
+    for col_idx, header in enumerate(spalten, start=1):
+        values = per_bereich[header]
         ws.cell(row=1, column=col_idx, value=header).font = Font(bold=True)
         for row_idx, value in enumerate(values, start=2):
             ws.cell(row=row_idx, column=col_idx, value=value)
@@ -114,7 +96,7 @@ def build_output(pairs, output_path: Path):
 
     ws.freeze_panes = "A2"
     wb.save(output_path)
-    return unbekannt, doppelt
+    return unbekannt
 
 
 def main() -> None:
@@ -128,9 +110,9 @@ def main() -> None:
         sys.exit(f"Datei nicht gefunden: {input_path}")
 
     pairs, skipped = read_pairs(input_path)
-    unbekannt, doppelt = build_output(pairs, output_path)
+    unbekannt = build_output(pairs, output_path)
 
-    print(f"{len(pairs)} Zuordnungspaare gefunden, {len(doppelt)} Begriffe doppelt.")
+    print(f"{len(pairs)} Zuordnungspaare gefunden.")
     if unbekannt:
         print(f"Warnung: unbekannte Bereiche in Spalte A (als eigene Spalten ausgegeben): {', '.join(unbekannt)}")
     if skipped:
