@@ -44,3 +44,6 @@ python abgleich.py
 Ergebnis ist `Abgleich.xlsx` mit einer Zeile pro Paar und dem Status "in beiden",
 "nur in test_Zuordnung" oder "nur in matching". Fehlt ein Paar in einer Liste, zeigt die
 Spalte "In der anderen Liste bei", welchem Bereich der Begriff dort zugeordnet ist.
+
+Zusätzlich entsteht `Abweichungen.xlsx` mit nur den auffälligen Begriffen: "Widerspruch"
+(unterschiedliche Bereiche in beiden Listen), "fehlt in matching" oder "fehlt in test_Zuordnung".
