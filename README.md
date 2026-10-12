@@ -27,7 +27,8 @@ und gibt eine Exceltabelle mit einer Spalte pro Bereich aus. Die Extraspalte "do
 Begriffe, die mehrfach vorkommen, mit ihren Bereichen, z. B. `Gruppe X → IT 1, IT 3`.
 
 ```bash
-python zuordnung.py "Deine Datei.xlsx"
+python zuordnung.py
 ```
 
-Das Ergebnis wird als `Deine Datei_Zuordnung.xlsx` gespeichert.
+Ohne Argument wird `test.xlsx` aus dem Ordner des Skripts gelesen und das Ergebnis als
+`test_Zuordnung.xlsx` gespeichert. Eine andere Datei kann als Argument angegeben werden.

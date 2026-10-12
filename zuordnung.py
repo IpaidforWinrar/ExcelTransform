@@ -10,8 +10,9 @@ der mehr als einmal vorkommt, zusammen mit den Bereichen, denen er zugeordnet is
 z. B. "Gruppe X → IT 1, IT 3" oder "Gruppe Y → IT 2 (2x)".
 
 Aufruf:
-    python zuordnung.py <Eingabedatei> [Ausgabedatei]
+    python zuordnung.py [Eingabedatei] [Ausgabedatei]
 
+Ohne Eingabedatei wird "test.xlsx" im selben Ordner wie dieses Skript verwendet.
 Ohne Ausgabedatei wird "<Eingabedatei>_Zuordnung.xlsx" gespeichert.
 """
 
@@ -22,6 +23,8 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
+
+DEFAULT_INPUT = Path(__file__).resolve().parent / "test.xlsx"
 
 START_ROW = 3
 
@@ -115,10 +118,7 @@ def build_output(pairs, output_path: Path):
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        sys.exit("Aufruf: python zuordnung.py <Eingabedatei> [Ausgabedatei]")
-
-    input_path = Path(sys.argv[1])
+    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_INPUT
     if len(sys.argv) > 2:
         output_path = Path(sys.argv[2])
     else:
