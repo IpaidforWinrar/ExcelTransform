@@ -1,0 +1,9 @@
+# Exceldateien mit echten Daten nicht einchecken
+*.xlsx
+*.xlsm
+*.xls
+~$*
+
+__pycache__/
+*.pyc
+.venv/
