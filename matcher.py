@@ -141,12 +141,19 @@ def bereich_aus_namen(gruppe: str, zuordnung: Zuordnung):
     return zuordnung.finde_bereich(name)
 
 
-def frage_bereich(gruppe: str, name: str, row: int, zuordnung: Zuordnung, hinweis: str = ""):
+def personen_text(namen, max_namen: int = 5) -> str:
+    anzahl = len(namen)
+    text = f"{anzahl} Person" if anzahl == 1 else f"{anzahl} Personen"
+    namen = [n for n in namen if n]
+    if namen:
+        text += ": " + ", ".join(namen[:max_namen]) + (", …" if len(namen) > max_namen else "")
+    return text
+
+
+def frage_bereich(titel: str, zuordnung: Zuordnung):
     bereiche = zuordnung.bereiche
     print()
-    print(f"Keine Zuordnung für Zeile {row}: Gruppe '{gruppe}'" + (f", Name '{name}'" if name else ""))
-    if hinweis:
-        print(hinweis)
+    print(titel)
     for idx, bereich in enumerate(bereiche, start=1):
         print(f"  {idx}) {bereich}")
     while True:
@@ -216,33 +223,54 @@ def main() -> None:
 
         offen.append((row, gruppe, name))
 
-    # Schritt 4: nicht zuordenbare Gruppen erst auflisten, dann einzeln abfragen
-    if offen:
-        print(f"{len(offen)} Gruppen konnten nicht automatisch zugeordnet werden:")
-        for row, gruppe, name in offen:
-            gefunden = zuordnung.lookup(gruppe)
-            zusatz = f"  [steht in mehreren Bereichen: {', '.join(gefunden)}]" if gefunden else ""
-            print(f"  Zeile {row}: {gruppe}" + (f" ({name})" if name else "") + zusatz)
-
+    # Schritt 4: offene Gruppen nach Typ und Schlüssel zusammenfassen, auflisten und
+    # dann pro Schlüssel einmal abfragen. Die Antwort gilt für alle Personen mit diesem Schlüssel.
+    schluessel = {}  # gruppe_key -> {"gruppe", "zeilen", "namen", "bereiche"}
     for row, gruppe, name in offen:
-        gefunden = zuordnung.lookup(gruppe)
-        # Gleiche Gruppe wurde weiter oben schon manuell zugeordnet
-        if len(gefunden) == 1:
-            ws.cell(row=row, column=COL_BETRIFFT, value=gefunden[0])
-            zaehler["manuell"] += 1
-            continue
+        eintrag = schluessel.setdefault(
+            gruppe_key(gruppe),
+            {"gruppe": gruppe, "zeilen": [], "namen": [], "bereiche": zuordnung.lookup(gruppe)},
+        )
+        eintrag["zeilen"].append(row)
+        eintrag["namen"].append(name)
 
-        hinweis = f"Steht in mehreren Bereichen: {', '.join(gefunden)}" if gefunden else ""
-        bereich = frage_bereich(gruppe, name, row, zuordnung, hinweis)
-        if not bereich:
-            zaehler["ohne Zuordnung"] += 1
-            continue
+    def sortiert(eintraege):
+        return sorted(eintraege, key=lambda e: (-len(e["zeilen"]), e["gruppe"].casefold()))
 
-        ws.cell(row=row, column=COL_BETRIFFT, value=bereich)
-        zaehler["manuell"] += 1
-        # Gruppen, die schon in mehreren Bereichen stehen, nicht noch einmal eintragen
-        if not gefunden:
-            zuordnung.hinzufuegen(gruppe, bereich)
+    typen = [
+        ("Neue Schlüssel", "Neuer Schlüssel",
+         sortiert(e for e in schluessel.values() if not e["bereiche"])),
+        ("Mehrfach zugeordnete Schlüssel", "Mehrfach zugeordneter Schlüssel",
+         sortiert(e for e in schluessel.values() if e["bereiche"])),
+    ]
+
+    if schluessel:
+        print(f"{len(offen)} Zeilen mit {len(schluessel)} Schlüsseln konnten nicht automatisch zugeordnet werden.")
+        for typ, _, eintraege in typen:
+            if not eintraege:
+                continue
+            print()
+            print(f"{typ} ({len(eintraege)}):")
+            for e in eintraege:
+                zusatz = f"  [steht in: {', '.join(e['bereiche'])}]" if e["bereiche"] else ""
+                print(f"  {e['gruppe']}{zusatz}  ({personen_text(e['namen'])})")
+
+    for _, typ_einzeln, eintraege in typen:
+        for e in eintraege:
+            titel = f"{typ_einzeln}: '{e['gruppe']}' ({personen_text(e['namen'])})"
+            if e["bereiche"]:
+                titel += f"\nSteht in mehreren Bereichen: {', '.join(e['bereiche'])}"
+            bereich = frage_bereich(titel, zuordnung)
+            if not bereich:
+                zaehler["ohne Zuordnung"] += len(e["zeilen"])
+                continue
+
+            for row in e["zeilen"]:
+                ws.cell(row=row, column=COL_BETRIFFT, value=bereich)
+            zaehler["manuell"] += len(e["zeilen"])
+            # Schlüssel, die schon in mehreren Bereichen stehen, nicht noch einmal eintragen
+            if not e["bereiche"]:
+                zuordnung.hinzufuegen(e["gruppe"], bereich)
 
     wb.save(ausgabe_datei)
     zuordnung.speichern()
