@@ -47,8 +47,8 @@ Vergleicht `filled Auswertung Benutzergruppen ZB IT.xlsx` mit `toCompareLastYear
 python comparator.py
 ```
 
-Ergebnis ist `Neuzugänge.xlsx` mit allen Kombinationen aus Gruppe und Name, die es letztes Jahr
-noch nicht gab.
+Ergebnis ist `Veränderungen.xlsx` mit zwei Reitern: "Neuzugänge" (Kombinationen aus Gruppe und Name,
+die es letztes Jahr noch nicht gab) und "Abgänge" (Kombinationen, die es dieses Jahr nicht mehr gibt).
 
 ## Zuordnungspaare (zuordnung.py)
 
