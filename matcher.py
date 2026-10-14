@@ -16,7 +16,7 @@ Ablauf:
 Neue Zuordnungen aus Schritt 3 und 4 werden in "Benutzergruppen Zuordnung.xlsx" übernommen,
 damit sie beim nächsten Mal direkt gefunden werden. Vorher wird davon eine Sicherung angelegt.
 
-Das Ergebnis wird als "Auswertung Benutzergruppen ZB IT.xlsx" gespeichert, die leere Vorlage
+Das Ergebnis wird als "filled Auswertung Benutzergruppen ZB IT.xlsx" gespeichert, die leere Vorlage
 bleibt unverändert.
 
 Aufruf:
@@ -37,7 +37,7 @@ ORDNER = Path(__file__).resolve().parent
 QUELLE_DATEI = "Auswertung Benutzergruppen_bearbeitet.xlsx"
 VORLAGE_DATEI = "empty Auswertung Benutzergruppen ZB IT.xlsx"
 ZUORDNUNG_DATEI = "Benutzergruppen Zuordnung.xlsx"
-AUSGABE_NAME = "Auswertung Benutzergruppen ZB IT.xlsx"
+AUSGABE_NAME = "filled Auswertung Benutzergruppen ZB IT.xlsx"
 
 QUELLE_START_ROW = 2  # Zeile 1 ist die Spaltenüberschrift
 VORLAGE_START_ROW = 3

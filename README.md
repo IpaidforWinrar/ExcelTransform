@@ -36,7 +36,19 @@ Spalte A/B der bearbeiteten Datei werden in Spalte B/C der Vorlage übertragen. 
 der Bereich in Spalte A eingetragen: zuerst per Abgleich mit `Benutzergruppen Zuordnung.xlsx`,
 sonst über den Namen (`IT_1...` → IT 1, `IT_0...` → IT-Leitung + Stab), sonst per Nachfrage im
 Terminal. Neue Zuordnungen werden in `Benutzergruppen Zuordnung.xlsx` übernommen (mit Sicherung).
-Das Ergebnis wird als `Auswertung Benutzergruppen ZB IT.xlsx` gespeichert.
+Das Ergebnis wird als `filled Auswertung Benutzergruppen ZB IT.xlsx` gespeichert.
+
+## Neuzugänge (comparator.py)
+
+Vergleicht `filled Auswertung Benutzergruppen ZB IT.xlsx` mit `toCompareLastYear.xlsx`
+(beide: A = betrifft, B = Gruppe, C = Name, ab Zeile 3).
+
+```bash
+python comparator.py
+```
+
+Ergebnis ist `Neuzugänge.xlsx` mit allen Kombinationen aus Gruppe und Name, die es letztes Jahr
+noch nicht gab.
 
 ## Zuordnungspaare (zuordnung.py)
 
