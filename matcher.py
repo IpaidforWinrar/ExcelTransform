@@ -3,14 +3,15 @@ Befüllt "empty Auswertung Benutzergruppen ZB IT.xlsx" und ordnet jede Gruppe ei
 
 Ablauf:
 1. Spalte A von "Auswertung Benutzergruppen_bearbeitet.xlsx" (Ergebnis von transform.py)
-   kommt in Spalte B (Gruppe), Spalte B kommt in Spalte C (Name) der leeren Vorlage,
-   jeweils ab Zeile 3.
+   kommt in Spalte B (Gruppe), Spalte B kommt in Spalte C (Name) der leeren Vorlage.
+   Gelesen wird ab Zeile 2 (Zeile 1 ist die Überschrift), eingefügt ab Zeile 3.
 2. Für jede Gruppe wird in "Benutzergruppen Zuordnung.xlsx" gesucht. Zeile 1 dort enthält die
    Bereiche (IT 1, IT 2, ..., IT-Leitung + Stab, übergreifend), darunter die Gruppen.
    Bei einem Treffer kommt die Spaltenüberschrift in Spalte A (betrifft).
 3. Ohne Treffer wird der Gruppenname geprüft: IT_1... -> IT 1, IT_6... -> IT 6,
    IT_0... -> IT-Leitung + Stab.
-4. Klappt auch das nicht, wird im Terminal nachgefragt.
+4. Klappt auch das nicht, werden alle offenen Gruppen im Terminal zuerst als Liste
+   ausgegeben und danach einzeln abgefragt.
 
 Neue Zuordnungen aus Schritt 3 und 4 werden in "Benutzergruppen Zuordnung.xlsx" übernommen,
 damit sie beim nächsten Mal direkt gefunden werden. Vorher wird davon eine Sicherung angelegt.
@@ -38,7 +39,7 @@ VORLAGE_DATEI = "empty Auswertung Benutzergruppen ZB IT.xlsx"
 ZUORDNUNG_DATEI = "Benutzergruppen Zuordnung.xlsx"
 AUSGABE_NAME = "Auswertung Benutzergruppen ZB IT.xlsx"
 
-QUELLE_START_ROW = 1
+QUELLE_START_ROW = 2  # Zeile 1 ist die Spaltenüberschrift
 VORLAGE_START_ROW = 3
 
 COL_BETRIFFT = 1  # Spalte A
@@ -191,8 +192,9 @@ def main() -> None:
         ws.cell(row=row, column=COL_GRUPPE, value=gruppe)
         ws.cell(row=row, column=COL_NAME, value=name)
 
-    # Schritt 2 bis 4: Bereich in Spalte A eintragen
+    # Schritt 2 und 3: Bereich automatisch in Spalte A eintragen
     zaehler = {"Treffer": 0, "aus IT_X": 0, "manuell": 0, "ohne Zuordnung": 0}
+    offen = []  # (row, gruppe, name), die nicht automatisch zugeordnet werden konnten
     for row in range(VORLAGE_START_ROW, VORLAGE_START_ROW + len(quelle)):
         gruppe = clean(ws.cell(row=row, column=COL_GRUPPE).value)
         name = clean(ws.cell(row=row, column=COL_NAME).value)
@@ -205,30 +207,42 @@ def main() -> None:
             zaehler["Treffer"] += 1
             continue
 
-        if len(gefunden) > 1:
-            # Gruppe steht in mehreren Bereichen: nachfragen, nichts Neues eintragen
-            bereich = frage_bereich(
-                gruppe, name, row, zuordnung, f"Steht in mehreren Bereichen: {', '.join(gefunden)}"
-            )
-            if bereich:
-                ws.cell(row=row, column=COL_BETRIFFT, value=bereich)
-                zaehler["manuell"] += 1
-            else:
-                zaehler["ohne Zuordnung"] += 1
+        bereich = bereich_aus_namen(gruppe, zuordnung) if not gefunden else None
+        if bereich:
+            ws.cell(row=row, column=COL_BETRIFFT, value=bereich)
+            zuordnung.hinzufuegen(gruppe, bereich)
+            zaehler["aus IT_X"] += 1
             continue
 
-        bereich = bereich_aus_namen(gruppe, zuordnung)
-        if bereich:
-            zaehler["aus IT_X"] += 1
-        else:
-            bereich = frage_bereich(gruppe, name, row, zuordnung)
-            if not bereich:
-                zaehler["ohne Zuordnung"] += 1
-                continue
+        offen.append((row, gruppe, name))
+
+    # Schritt 4: nicht zuordenbare Gruppen erst auflisten, dann einzeln abfragen
+    if offen:
+        print(f"{len(offen)} Gruppen konnten nicht automatisch zugeordnet werden:")
+        for row, gruppe, name in offen:
+            gefunden = zuordnung.lookup(gruppe)
+            zusatz = f"  [steht in mehreren Bereichen: {', '.join(gefunden)}]" if gefunden else ""
+            print(f"  Zeile {row}: {gruppe}" + (f" ({name})" if name else "") + zusatz)
+
+    for row, gruppe, name in offen:
+        gefunden = zuordnung.lookup(gruppe)
+        # Gleiche Gruppe wurde weiter oben schon manuell zugeordnet
+        if len(gefunden) == 1:
+            ws.cell(row=row, column=COL_BETRIFFT, value=gefunden[0])
             zaehler["manuell"] += 1
+            continue
+
+        hinweis = f"Steht in mehreren Bereichen: {', '.join(gefunden)}" if gefunden else ""
+        bereich = frage_bereich(gruppe, name, row, zuordnung, hinweis)
+        if not bereich:
+            zaehler["ohne Zuordnung"] += 1
+            continue
 
         ws.cell(row=row, column=COL_BETRIFFT, value=bereich)
-        zuordnung.hinzufuegen(gruppe, bereich)
+        zaehler["manuell"] += 1
+        # Gruppen, die schon in mehreren Bereichen stehen, nicht noch einmal eintragen
+        if not gefunden:
+            zuordnung.hinzufuegen(gruppe, bereich)
 
     wb.save(ausgabe_datei)
     zuordnung.speichern()
