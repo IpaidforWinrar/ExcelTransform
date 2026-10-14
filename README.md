@@ -20,6 +20,24 @@ python transform.py "Auswertung Benutzergruppen.xlsx"
 
 Das Ergebnis wird als `Auswertung Benutzergruppen_bearbeitet.xlsx` gespeichert. Optional kann als zweites Argument ein eigener Name für die Ausgabedatei angegeben werden.
 
+## Gruppen zuordnen (matcher.py)
+
+Läuft nach `transform.py`. Benötigt im Ordner des Skripts:
+
+- `Auswertung Benutzergruppen_bearbeitet.xlsx` (Ergebnis von `transform.py`)
+- `empty Auswertung Benutzergruppen ZB IT.xlsx` (Vorlage: A = betrifft, B = Gruppe, C = Name, ab Zeile 3)
+- `Benutzergruppen Zuordnung.xlsx` (Zeile 1 = Bereiche, darunter die Gruppen)
+
+```bash
+python matcher.py
+```
+
+Spalte A/B der bearbeiteten Datei werden in Spalte B/C der Vorlage übertragen. Für jede Gruppe wird
+der Bereich in Spalte A eingetragen: zuerst per Abgleich mit `Benutzergruppen Zuordnung.xlsx`,
+sonst über den Namen (`IT_1...` → IT 1, `IT_0...` → IT-Leitung + Stab), sonst per Nachfrage im
+Terminal. Neue Zuordnungen werden in `Benutzergruppen Zuordnung.xlsx` übernommen (mit Sicherung).
+Das Ergebnis wird als `Auswertung Benutzergruppen ZB IT.xlsx` gespeichert.
+
 ## Zuordnungspaare (zuordnung.py)
 
 Vergleicht Spalte A (IT 1 bis IT 6, "IT-Leitung + Stab", "übergreifend") mit Spalte B ab Zeile 3
