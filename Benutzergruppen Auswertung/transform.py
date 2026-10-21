@@ -9,7 +9,7 @@ Bearbeitet die Exceltabelle "Auswertung Benutzergruppen.xlsx":
 Aufruf:
     python transform.py [Eingabedatei] [Ausgabedatei]
 
-Ohne Argumente wird "Auswertung Benutzergruppen.xlsx" im aktuellen Ordner verwendet
+Ohne Argumente wird "Auswertung Benutzergruppen.xlsx" im Ordner dieses Skripts verwendet
 und das Ergebnis als "Auswertung Benutzergruppen_bearbeitet.xlsx" gespeichert.
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-DEFAULT_INPUT = "Auswertung Benutzergruppen.xlsx"
+DEFAULT_INPUT = Path(__file__).resolve().parent / "Auswertung Benutzergruppen.xlsx"
 
 COL_B = 2
 COL_C = 3
@@ -49,7 +49,7 @@ def transform(input_path: Path, output_path: Path) -> None:
 
 
 def main() -> None:
-    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(DEFAULT_INPUT)
+    input_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_INPUT
     if len(sys.argv) > 2:
         output_path = Path(sys.argv[2])
     else:
