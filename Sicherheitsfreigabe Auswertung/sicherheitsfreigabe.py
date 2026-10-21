@@ -27,7 +27,7 @@ Aufruf:
 
 Die Exceldateien werden im Ordner dieses Skripts gesucht, danach im Ordner "Benutzergruppen
 Auswertung" daneben, im übergeordneten Ordner und im aktuellen Ordner. Die Ergebnisse landen im
-Ordner dieses Skripts.
+Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird.
 """
 
 import re
@@ -40,6 +40,7 @@ from openpyxl import load_workbook
 ORDNER = Path(__file__).resolve().parent
 # "Benutzergruppen Zuordnung.xlsx" wird von matcher.py im Nachbarordner gepflegt
 BENUTZERGRUPPEN_ORDNER = ORDNER.parent / "Benutzergruppen Auswertung"
+AUSGABE_ORDNER = ORDNER / "Ausgabe Auswertung"
 
 QUELLE_DATEI = "Auswertung Sicherheitsfreigabe.xlsx"
 ZUORDNUNG_DATEI = "Benutzergruppen Zuordnung.xlsx"
@@ -201,13 +202,14 @@ def main() -> None:
     gruppen = read_zuordnung(zuordnung_datei)
     zeilen = read_quelle(quelle_datei, gruppen)
 
+    AUSGABE_ORDNER.mkdir(exist_ok=True)
     print(f"{len(zeilen)} Zeilen gelesen.")
     for bereich, kuerzel in BEREICHE.items():
         auswahl = [z for z in zeilen if bereich in z[1]]
-        write_liste(vorlage_datei, ORDNER / AUSGABE_MUSTER.format(kuerzel), auswahl, mit_zuordnung=False)
+        write_liste(vorlage_datei, AUSGABE_ORDNER / AUSGABE_MUSTER.format(kuerzel), auswahl, mit_zuordnung=False)
         print(f"  {kuerzel}: {len(auswahl)}")
 
-    write_liste(vorlage_datei, ORDNER / AUSGABE_MUSTER.format(GESAMT), zeilen, mit_zuordnung=True)
+    write_liste(vorlage_datei, AUSGABE_ORDNER / AUSGABE_MUSTER.format(GESAMT), zeilen, mit_zuordnung=True)
     print(f"  {GESAMT}: {len(zeilen)}")
 
     doppelt = sum(1 for _, b in zeilen if len(b) > 1)
@@ -215,7 +217,7 @@ def main() -> None:
     print(f"Doppelzuordnungen: {doppelt}")
     if ohne:
         print(f"Ohne Zuordnung (nur in der Gesamtliste): {ohne}")
-    print(f"Fertig: 10 Dateien in {ORDNER}")
+    print(f"Fertig: 10 Dateien in {AUSGABE_ORDNER}")
 
 
 if __name__ == "__main__":

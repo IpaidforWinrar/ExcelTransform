@@ -111,5 +111,5 @@ zu (oder über `IT_1` bis `IT_7`, `IT_0` → IT-Leitung + Stab). Gruppen ohne Tr
 die Zuordnungsdatei wird nicht verändert. Mehrere Bereiche werden in Spalte J "Doppelzuordnung" notiert.
 
 Ergebnis sind 10 Dateien `Auswertung Sicherheitsfreigabe und Gruppenzuordnung ZB IT - X.xlsx`
-(X = IT 1 bis IT 7, IT-L_Stab, IT-übergreifend, IT - gesamt). Die Gesamtliste hat zusätzlich
-Spalte K "Zuordnung".
+(X = IT 1 bis IT 7, IT-L_Stab, IT-übergreifend, IT - gesamt) im Unterordner `Ausgabe Auswertung`.
+Die Gesamtliste hat zusätzlich Spalte K "Zuordnung".
