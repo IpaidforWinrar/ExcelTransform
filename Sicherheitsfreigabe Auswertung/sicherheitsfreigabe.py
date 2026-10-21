@@ -27,12 +27,15 @@ Aufruf:
 
 Die Exceldateien werden im Ordner dieses Skripts gesucht, danach im Ordner "Benutzergruppen
 Auswertung" daneben, im übergeordneten Ordner und im aktuellen Ordner. Die Ergebnisse landen im
-Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird.
+Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird. Dort liegt auch die Logdatei
+"Auswertung Sicherheitsfreigabe.log" mit allem, was im Terminal ausgegeben wurde.
 """
 
 import re
 import sys
+import traceback
 from copy import copy
+from datetime import datetime
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -46,6 +49,7 @@ QUELLE_DATEI = "Auswertung Sicherheitsfreigabe.xlsx"
 ZUORDNUNG_DATEI = "Benutzergruppen Zuordnung.xlsx"
 VORLAGE_DATEI = "empty Auswertung Sicherheitsfreigabe.xlsx"
 AUSGABE_MUSTER = "Auswertung Sicherheitsfreigabe und Gruppenzuordnung ZB IT - {}.xlsx"
+LOG_DATEI = AUSGABE_ORDNER / "Auswertung Sicherheitsfreigabe.log"
 
 QUELLE_START_ROW = 2
 QUELLE_SPALTEN = 8  # A bis H
@@ -202,7 +206,6 @@ def main() -> None:
     gruppen = read_zuordnung(zuordnung_datei)
     zeilen = read_quelle(quelle_datei, gruppen)
 
-    AUSGABE_ORDNER.mkdir(exist_ok=True)
     print(f"{len(zeilen)} Zeilen gelesen.")
     for bereich, kuerzel in BEREICHE.items():
         auswahl = [z for z in zeilen if bereich in z[1]]
@@ -218,7 +221,44 @@ def main() -> None:
     if ohne:
         print(f"Ohne Zuordnung (nur in der Gesamtliste): {ohne}")
     print(f"Fertig: 10 Dateien in {AUSGABE_ORDNER}")
+    print(f"Log: {LOG_DATEI}")
+
+
+class Tee:
+    """Schreibt alles gleichzeitig ins Terminal und in die Logdatei."""
+
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, text):
+        for stream in self.streams:
+            stream.write(text)
+
+    def flush(self):
+        for stream in self.streams:
+            stream.flush()
+
+
+def main_mit_log() -> None:
+    AUSGABE_ORDNER.mkdir(exist_ok=True)
+    with open(LOG_DATEI, "w", encoding="utf-8") as log:
+        stdout, stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = Tee(stdout, log), Tee(stderr, log)
+        try:
+            print(f"Lauf vom {datetime.now():%d.%m.%Y %H:%M:%S}")
+            main()
+        except SystemExit as exc:
+            # sys.exit("Meldung") gibt die Meldung sonst erst nach dem Schließen der Logdatei aus
+            if isinstance(exc.code, str):
+                print(exc.code, file=sys.stderr)
+                raise SystemExit(1)
+            raise
+        except Exception:
+            traceback.print_exc()
+            raise SystemExit(1)
+        finally:
+            sys.stdout, sys.stderr = stdout, stderr
 
 
 if __name__ == "__main__":
-    main()
+    main_mit_log()

@@ -112,4 +112,5 @@ die Zuordnungsdatei wird nicht verändert. Mehrere Bereiche werden in Spalte J "
 
 Ergebnis sind 10 Dateien `Auswertung Sicherheitsfreigabe und Gruppenzuordnung ZB IT - X.xlsx`
 (X = IT 1 bis IT 7, IT-L_Stab, IT-übergreifend, IT - gesamt) im Unterordner `Ausgabe Auswertung`.
-Die Gesamtliste hat zusätzlich Spalte K "Zuordnung".
+Die Gesamtliste hat zusätzlich Spalte K "Zuordnung". Dort liegt auch `Auswertung Sicherheitsfreigabe.log`
+mit allem, was im Terminal ausgegeben wurde.
