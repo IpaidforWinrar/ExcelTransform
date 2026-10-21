@@ -25,10 +25,11 @@ und zusätzlich Spalte K "Zuordnung".
 Aufruf:
     python sicherheitsfreigabe.py
 
-Die Exceldateien werden im Ordner dieses Skripts gesucht, danach im Ordner "Benutzergruppen
-Auswertung" daneben, im übergeordneten Ordner und im aktuellen Ordner. Die Ergebnisse landen im
-Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird. Dort liegt auch die Logdatei
-"Auswertung Sicherheitsfreigabe.log" mit allem, was im Terminal ausgegeben wurde.
+Die Exceldateien werden im Unterordner "Eingabe Auswertung" gesucht, danach im Ordner dieses
+Skripts, im Ordner "Benutzergruppen Auswertung" daneben, im übergeordneten Ordner und im aktuellen
+Ordner. Die Ergebnisse landen im Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird.
+Dort liegt auch die Logdatei "Auswertung Sicherheitsfreigabe.log" mit allem, was im Terminal
+ausgegeben wurde.
 """
 
 import re
@@ -43,6 +44,7 @@ from openpyxl import load_workbook
 ORDNER = Path(__file__).resolve().parent
 # "Benutzergruppen Zuordnung.xlsx" wird von matcher.py im Nachbarordner gepflegt
 BENUTZERGRUPPEN_ORDNER = ORDNER.parent / "Benutzergruppen Auswertung"
+EINGABE_ORDNER = ORDNER / "Eingabe Auswertung"
 AUSGABE_ORDNER = ORDNER / "Ausgabe Auswertung"
 
 QUELLE_DATEI = "Auswertung Sicherheitsfreigabe.xlsx"
@@ -98,7 +100,7 @@ BEREICH_KEYS = {bereich_key(b): b for b in BEREICHE}
 
 
 def find_file(name: str) -> Path:
-    ordner_liste = (ORDNER, BENUTZERGRUPPEN_ORDNER, ORDNER.parent, Path.cwd())
+    ordner_liste = (EINGABE_ORDNER, ORDNER, BENUTZERGRUPPEN_ORDNER, ORDNER.parent, Path.cwd())
     for ordner in ordner_liste:
         path = ordner / name
         if path.exists():

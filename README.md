@@ -96,11 +96,18 @@ Zusätzlich entsteht `Abweichungen.xlsx` mit nur den auffälligen Begriffen: "Wi
 
 ## sicherheitsfreigabe.py
 
-Benötigt:
+```
+Sicherheitsfreigabe Auswertung/
+├── sicherheitsfreigabe.py
+├── Eingabe Auswertung/   die 3 benötigten Dateien
+└── Ausgabe Auswertung/   Ergebnisse und Logdatei (wird angelegt)
+```
+
+Benötigt im Ordner `Eingabe Auswertung`:
 
 - `Auswertung Sicherheitsfreigabe.xlsx` (Spalten A bis H, Zeile 1 = Überschrift, Gruppen in Spalte H mit "," getrennt)
 - `empty Auswertung Sicherheitsfreigabe.xlsx` (Vorlage, Überschriften in Zeile 2, Werte ab Zeile 3)
-- `Benutzergruppen Zuordnung.xlsx` (wird auch im Ordner "Benutzergruppen Auswertung" gefunden)
+- `Benutzergruppen Zuordnung.xlsx` (wird ersatzweise auch im Ordner "Benutzergruppen Auswertung" gefunden)
 
 ```bash
 python "Sicherheitsfreigabe Auswertung/sicherheitsfreigabe.py"
