@@ -1,44 +1,33 @@
 """
-Führt die komplette Benutzergruppen-Auswertung in einem Durchgang aus:
+Startet die drei Skripte der Benutzergruppen-Auswertung nacheinander:
 
-1. transform.py   "Auswertung Benutzergruppen.xlsx" -> "Auswertung Benutzergruppen_bearbeitet.xlsx"
-2. matcher.py     befüllt die Vorlage und ordnet die Bereiche zu
-                  -> "filled Auswertung Benutzergruppen ZB IT.xlsx"
-3. comparator.py  Vergleich mit dem Vorjahr -> "Veränderungen.xlsx"
+1. transform.py
+2. matcher.py
+3. comparator.py
 
-Bricht ein Schritt ab (z. B. weil eine Datei fehlt), werden die folgenden Schritte nicht ausgeführt.
+Jedes Skript läuft so, als würde es einzeln mit "python <skript>.py" gestartet.
+Bricht ein Skript mit einem Fehler ab, werden die folgenden nicht mehr gestartet.
 
 Aufruf:
     python benutzergruppenAuswertung.py
 """
 
+import subprocess
 import sys
+from pathlib import Path
 
-import comparator
-import matcher
-import transform
+ORDNER = Path(__file__).resolve().parent
 
-SCHRITTE = [
-    ("Transformation", transform.main),
-    ("Zuordnung", matcher.main),
-    ("Vergleich mit Vorjahr", comparator.main),
-]
+SKRIPTE = ["transform.py", "matcher.py", "comparator.py"]
 
 
 def main() -> None:
-    # transform.main() wertet sys.argv aus, daher keine Argumente weiterreichen
-    sys.argv = sys.argv[:1]
-
-    for nummer, (titel, schritt) in enumerate(SCHRITTE, start=1):
+    for nummer, skript in enumerate(SKRIPTE, start=1):
         print()
-        print(f"=== Schritt {nummer}/{len(SCHRITTE)}: {titel} ===")
-        try:
-            schritt()
-        except SystemExit as exc:
-            if exc.code not in (None, 0):
-                if isinstance(exc.code, str):
-                    print(exc.code, file=sys.stderr)
-                sys.exit(f"Abbruch in Schritt {nummer} ({titel}).")
+        print(f"=== Schritt {nummer}/{len(SKRIPTE)}: {skript} ===", flush=True)
+        ergebnis = subprocess.run([sys.executable, str(ORDNER / skript)], cwd=ORDNER)
+        if ergebnis.returncode != 0:
+            sys.exit(f"Abbruch: {skript} ist mit Fehlercode {ergebnis.returncode} beendet worden.")
 
     print()
     print("Benutzergruppen-Auswertung abgeschlossen.")
