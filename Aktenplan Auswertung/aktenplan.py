@@ -7,10 +7,17 @@ Eingabe: "AktenplanAlt.xlsx", Werte ab Zeile 3.
     Spalte C: Aktenplan-Eintrag, z. B. "IT.01.01.01 Inspire"
 
 Ausgabe: "Aktenplan Zuordnung.xlsx" mit einer Zeile pro Eintrag aus Spalte C:
-    Aktenplan-Eintrag | Status | Bereiche | Anzahl Bereiche | Anzahl Zeilen | Zeilen
+    Aktenplan-Eintrag | Status | Bereiche | Anzahl Bereiche | Anzahl Zeilen | Zeilen |
+    Im Namen genannt | Widerspruch
 Status ist "unique", wenn der Eintrag nur einem Bereich zugeordnet ist, sonst "mehrfach".
-Mehrfach zugeordnete Einträge stehen oben. Bei "Bereiche" steht dahinter, wie oft der
-Eintrag dem Bereich zugeordnet ist, z. B. "IT 1 (2x), IT 7".
+Mehrfach zugeordnete Einträge stehen oben, danach die Widersprüche. Bei "Bereiche" steht
+dahinter, wie oft der Eintrag dem Bereich zugeordnet ist, z. B. "IT 1 (2x), IT 7".
+
+Widerspruch: Nennt der Eintrag selbst einen Bereich, z. B. "IT 1 Server", ist aber (eindeutig)
+einem anderen Bereich wie "IT 7" zugeordnet, steht in der Spalte "Widerspruch" ein "ja" mit
+Erklärung. Geprüft wird nur bei Einträgen mit status "unique". Ein Bereichsname zählt nur, wenn
+er als eigenes Wort im Eintrag steht: "IT 1", "it1", "IT_1" oder "IT-1" werden erkannt,
+"IT 10", "WIT 1" oder "IT.01.01.01" nicht. Auch "IT-Leitung + Stab" wird erkannt.
 
 Einträge in Spalte C werden ohne Rücksicht auf Groß-/Kleinschreibung und überzählige
 Leerzeichen verglichen.
@@ -54,8 +61,27 @@ BEREICHE = [
 STATUS_UNIQUE = "unique"
 STATUS_MEHRFACH = "mehrfach"
 STATUS_FARBEN = {STATUS_UNIQUE: "C6EFCE", STATUS_MEHRFACH: "FFC7CE"}
+WIDERSPRUCH_FARBE = "FFEB9C"
 
-HEADERS = ["Aktenplan-Eintrag", "Status", "Bereiche", "Anzahl Bereiche", "Anzahl Zeilen", "Zeilen"]
+HEADERS = [
+    "Aktenplan-Eintrag", "Status", "Bereiche", "Anzahl Bereiche", "Anzahl Zeilen", "Zeilen",
+    "Im Namen genannt", "Widerspruch",
+]
+COL_STATUS = 2
+COL_WIDERSPRUCH = 8
+
+# "IT 1" bis "IT 7" als eigenes Wort: nicht Teil eines längeren Worts oder einer längeren Zahl
+# ("WIT 1", "IT 10", "IT 1a"), und nicht "IT.01", denn dort steht ein Punkt statt Leerzeichen.
+IT_NUMMER = re.compile(r"(?<![A-Za-z0-9])IT[\s_-]?0?([1-7])(?![0-9A-Za-z])", re.IGNORECASE)
+IT_LEITUNG = re.compile(r"(?<![A-Za-z0-9])IT[\s_-]?Leitung(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+def genannte_bereiche(eintrag: str):
+    """Bereiche, die der Eintrag selbst im Namen nennt, in der Reihenfolge von BEREICHE."""
+    gefunden = {f"IT {ziffer}" for ziffer in IT_NUMMER.findall(eintrag)}
+    if IT_LEITUNG.search(eintrag):
+        gefunden.add("IT-Leitung + Stab")
+    return [b for b in BEREICHE if b in gefunden]
 
 
 def clean(value) -> str:
@@ -119,6 +145,16 @@ def build_rows(eintraege):
             f"{b} ({e['bereiche'][b]}x)" if e["bereiche"][b] > 1 else b for b in bereiche
         )
         status = STATUS_UNIQUE if len(bereiche) == 1 else STATUS_MEHRFACH
+        genannt = genannte_bereiche(e["eintrag"])
+
+        # Widerspruch nur bei eindeutiger Zuordnung: Name nennt Bereiche, aber nicht den zugeordneten
+        widerspruch = ""
+        if status == STATUS_UNIQUE:
+            if genannt and bereiche[0] not in genannt:
+                widerspruch = f"ja: Name nennt {', '.join(genannt)}, zugeordnet ist {bereiche[0]}"
+            else:
+                widerspruch = "nein"
+
         rows.append((
             e["eintrag"],
             status,
@@ -126,8 +162,14 @@ def build_rows(eintraege):
             len(bereiche),
             len(e["zeilen"]),
             ", ".join(map(str, e["zeilen"])),
+            ", ".join(genannt),
+            widerspruch,
         ))
-    rows.sort(key=lambda r: (r[1] != STATUS_MEHRFACH, r[0].casefold()))
+    rows.sort(key=lambda r: (
+        r[1] != STATUS_MEHRFACH,
+        not r[COL_WIDERSPRUCH - 1].startswith("ja"),
+        r[0].casefold(),
+    ))
     return rows
 
 
@@ -141,7 +183,13 @@ def write_output(rows, path: Path) -> None:
 
     for row in rows:
         ws.append(row)
-        ws.cell(row=ws.max_row, column=2).fill = PatternFill("solid", start_color=STATUS_FARBEN[row[1]])
+        ws.cell(row=ws.max_row, column=COL_STATUS).fill = PatternFill(
+            "solid", start_color=STATUS_FARBEN[row[1]]
+        )
+        if row[COL_WIDERSPRUCH - 1].startswith("ja"):
+            ws.cell(row=ws.max_row, column=COL_WIDERSPRUCH).fill = PatternFill(
+                "solid", start_color=WIDERSPRUCH_FARBE
+            )
 
     for col_idx, header in enumerate(HEADERS, start=1):
         width = max([len(header)] + [len(str(r[col_idx - 1])) for r in rows]) + 2
@@ -165,6 +213,10 @@ def main() -> None:
     print(f"  {STATUS_MEHRFACH}: {len(mehrfach)}")
     for r in mehrfach:
         print(f"    {r[0]} -> {r[2]}")
+    widersprueche = [r for r in rows if r[COL_WIDERSPRUCH - 1].startswith("ja")]
+    print(f"  Widerspruch (Name nennt anderen Bereich als zugeordnet): {len(widersprueche)}")
+    for r in widersprueche:
+        print(f"    {r[0]} -> {r[COL_WIDERSPRUCH - 1][4:]}")
     if ohne_bereich:
         print(f"Warnung: Zeilen ohne Bereich in Spalte B übersprungen: {', '.join(map(str, ohne_bereich))}")
     print(f"Fertig: {ausgabe_datei}")

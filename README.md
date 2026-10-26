@@ -29,6 +29,11 @@ python "Aktenplan Auswertung/aktenplan.py"
 Ergebnis ist `Aktenplan Zuordnung.xlsx` mit einer Zeile pro Eintrag (Status, Bereiche, Anzahl Bereiche,
 Anzahl Zeilen, Zeilennummern). Mehrfach zugeordnete Einträge stehen oben.
 
+Zusätzlich wird auf Widersprüche geprüft: Nennt der Eintrag in Spalte C selbst einen Bereich
+(z. B. "IT 1 Server"), ist aber eindeutig einem anderen Bereich zugeordnet (z. B. IT 7), steht in der
+Spalte "Widerspruch" ein "ja" mit Erklärung. Ein Bereich zählt nur als eigenes Wort: "IT 1", "it1",
+"IT_1", "IT-1" und "IT-Leitung" werden erkannt, "IT 10", "WIT 1" und "IT.01.01.01" nicht.
+
 ## Installation
 
 ```bash
