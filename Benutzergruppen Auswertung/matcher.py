@@ -38,7 +38,7 @@ ORDNER = Path(__file__).resolve().parent
 EINGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Eingabe Benutzergruppen"
 AUSGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Ausgabe Benutzergruppen"
 
-QUELLE_DATEI = ORDNER.parent / AUSGABE_ORDNER / "Auswertung Benutzergruppen_bearbeitet.xlsx"
+QUELLE_DATEI = ORDNER.parent / EINGABE_ORDNER / "Auswertung Benutzergruppen.xlsx"
 VORLAGE_DATEI = ORDNER.parent / EINGABE_ORDNER / "empty Auswertung Benutzergruppen ZB IT.xlsx"
 # fungiert als Eingabe und Ausgabe:
 ZUORDNUNG_DATEI = ORDNER.parent / EINGABE_ORDNER / "Benutzergruppen Zuordnung.xlsx"
