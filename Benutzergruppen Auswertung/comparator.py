@@ -29,9 +29,12 @@ from openpyxl.styles import Font
 
 ORDNER = Path(__file__).resolve().parent
 
-AKTUELL_DATEI = "filled Auswertung Benutzergruppen ZB IT.xlsx"
-VORJAHR_DATEI = "toCompareLastYear.xlsx"
-AUSGABE_NAME = "Veränderungen.xlsx"
+EINGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Eingabe Benutzergruppen"
+AUSGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Ausgabe Benutzergruppen"
+
+AKTUELL_DATEI = AUSGABE_ORDNER / "filled Auswertung Benutzergruppen ZB IT.xlsx"
+VORJAHR_DATEI = EINGABE_ORDNER / "toCompareLastYear.xlsx"
+AUSGABE_NAME = AUSGABE_ORDNER / "Veränderungen.xlsx"
 
 START_ROW = 3
 HEADERS = ["betrifft", "Gruppe", "Name"]
