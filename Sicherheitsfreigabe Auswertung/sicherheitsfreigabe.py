@@ -25,9 +25,9 @@ und zusätzlich Spalte K "Zuordnung".
 Aufruf:
     python sicherheitsfreigabe.py
 
-Die Exceldateien werden im Unterordner "Eingabe Auswertung" gesucht, danach im Ordner dieses
+Die Exceldateien werden im Unterordner "Eingabe Sicherheitsfreigabe" gesucht, danach im Ordner dieses
 Skripts, im Ordner "Benutzergruppen Auswertung" daneben, im übergeordneten Ordner und im aktuellen
-Ordner. Die Ergebnisse landen im Unterordner "Ausgabe Auswertung", der bei Bedarf angelegt wird.
+Ordner. Die Ergebnisse landen im Unterordner "Ausgabe Sicherheitsfreigabe", der bei Bedarf angelegt wird.
 Dort liegt auch die Logdatei "Auswertung Sicherheitsfreigabe.log" mit allem, was im Terminal
 ausgegeben wurde.
 """
@@ -41,15 +41,17 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+# ORDNERLOGIK
 ORDNER = Path(__file__).resolve().parent
-# "Benutzergruppen Zuordnung.xlsx" wird von matcher.py im Nachbarordner gepflegt
+#print(ORDNER.parent)
 BENUTZERGRUPPEN_ORDNER = ORDNER.parent / "Benutzergruppen Auswertung"
-EINGABE_ORDNER = ORDNER / "Eingabe Auswertung"
-AUSGABE_ORDNER = ORDNER / "Ausgabe Auswertung"
+EINGABE_ORDNER = ORDNER.parent / "FAVIS DB Sicherheitsfreigabe" / "Eingabe Sicherheitsfreigabe"
+AUSGABE_ORDNER = ORDNER.parent / "FAVIS DB Sicherheitsfreigabe" / "Ausgabe Sicherheitsfreigabe"
 
-QUELLE_DATEI = "Auswertung Sicherheitsfreigabe.xlsx"
-ZUORDNUNG_DATEI = "Benutzergruppen Zuordnung.xlsx"
-VORLAGE_DATEI = "empty Auswertung Sicherheitsfreigabe.xlsx"
+QUELLE_DATEI = EINGABE_ORDNER / "Auswertung Sicherheitsfreigabe.xlsx"
+# Datei liegt in "FAVIS DB Zugriffsauswertung\FAVIS DB Benutzergruppen\Eingabe Benutzergruppen", weil dort auf gepflegt wird
+ZUORDNUNG_DATEI = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Eingabe Benutzergruppen" / "Benutzergruppen Zuordnung.xlsx"
+VORLAGE_DATEI = EINGABE_ORDNER / "empty Auswertung Sicherheitsfreigabe.xlsx"
 AUSGABE_MUSTER = "Auswertung Sicherheitsfreigabe und Gruppenzuordnung ZB IT - {}.xlsx"
 LOG_DATEI = AUSGABE_ORDNER / "Auswertung Sicherheitsfreigabe.log"
 
