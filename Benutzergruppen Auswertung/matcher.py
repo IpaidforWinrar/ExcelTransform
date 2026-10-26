@@ -16,13 +16,14 @@ Ablauf:
 Neue Zuordnungen aus Schritt 3 und 4 werden in "Benutzergruppen Zuordnung.xlsx" übernommen,
 damit sie beim nächsten Mal direkt gefunden werden. Vorher wird davon eine Sicherung angelegt.
 
-Das Ergebnis wird als "Auswertung Benutzergruppen ZB IT.xlsx" gespeichert, die leere Vorlage
+Das Ergebnis wird als "filled Auswertung Benutzergruppen ZB IT.xlsx" gespeichert, die leere Vorlage
 bleibt unverändert.
 
 Aufruf:
     python matcher.py
 
-Die Exceldateien werden im Ordner dieses Skripts gesucht, danach im aktuellen Ordner.
+Vorlage und Zuordnung liegen in "FAVIS DB Benutzergruppen/Eingabe Benutzergruppen", die bearbeitete
+Datei und das Ergebnis in "FAVIS DB Benutzergruppen/Ausgabe Benutzergruppen".
 """
 
 import re
@@ -38,12 +39,12 @@ ORDNER = Path(__file__).resolve().parent
 EINGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Eingabe Benutzergruppen"
 AUSGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Ausgabe Benutzergruppen"
 
-QUELLE_DATEI = ORDNER.parent / EINGABE_ORDNER / "Auswertung Benutzergruppen.xlsx"
-VORLAGE_DATEI = ORDNER.parent / EINGABE_ORDNER / "empty Auswertung Benutzergruppen ZB IT.xlsx"
+# Ergebnis von transform.py
+QUELLE_DATEI = AUSGABE_ORDNER / "Auswertung Benutzergruppen_bearbeitet.xlsx"
+VORLAGE_DATEI = EINGABE_ORDNER / "empty Auswertung Benutzergruppen ZB IT.xlsx"
 # fungiert als Eingabe und Ausgabe:
-ZUORDNUNG_DATEI = ORDNER.parent / EINGABE_ORDNER / "Benutzergruppen Zuordnung.xlsx"
-# nur der Name
-AUSGABE_NAME = "filled Auswertung Benutzergruppen ZB IT.xlsx"
+ZUORDNUNG_DATEI = EINGABE_ORDNER / "Benutzergruppen Zuordnung.xlsx"
+AUSGABE_DATEI = AUSGABE_ORDNER / "filled Auswertung Benutzergruppen ZB IT.xlsx"
 
 QUELLE_START_ROW = 2  # Zeile 1 ist die Spaltenüberschrift
 VORLAGE_START_ROW = 3
@@ -72,12 +73,10 @@ def bereich_key(text: str) -> str:
     return re.sub(r"^it\s*(\d)$", r"it \1", clean(text).casefold())
 
 
-def find_file(name: str) -> Path:
-    for ordner in (ORDNER, Path.cwd()):
-        path = ordner / name
-        if path.exists():
-            return path
-    sys.exit(f"Datei nicht gefunden: {name} (gesucht in {ORDNER} und {Path.cwd()})")
+def find_file(path: Path) -> Path:
+    if not path.exists():
+        sys.exit(f"Datei nicht gefunden: {path}")
+    return path
 
 
 class Zuordnung:
@@ -190,7 +189,8 @@ def main() -> None:
     quelle_datei = find_file(QUELLE_DATEI)
     vorlage_datei = find_file(VORLAGE_DATEI)
     zuordnung_datei = find_file(ZUORDNUNG_DATEI)
-    ausgabe_datei = vorlage_datei.with_name(AUSGABE_NAME)
+    ausgabe_datei = AUSGABE_DATEI
+    ausgabe_datei.parent.mkdir(parents=True, exist_ok=True)
 
     zuordnung = Zuordnung(zuordnung_datei)
     if not zuordnung.bereiche:

@@ -16,8 +16,8 @@ der Bereich vom letzten Jahr.
 Aufruf:
     python comparator.py
 
-Die Exceldateien werden im Ordner dieses Skripts gesucht, danach im aktuellen Ordner.
-Das Ergebnis landet im selben Ordner wie die Datei von diesem Jahr.
+"toCompareLastYear.xlsx" liegt in "FAVIS DB Benutzergruppen/Eingabe Benutzergruppen",
+die Datei von diesem Jahr und das Ergebnis in "FAVIS DB Benutzergruppen/Ausgabe Benutzergruppen".
 """
 
 import re
@@ -34,7 +34,7 @@ AUSGABE_ORDNER = ORDNER.parent / "FAVIS DB Benutzergruppen" / "Ausgabe Benutzerg
 
 AKTUELL_DATEI = AUSGABE_ORDNER / "filled Auswertung Benutzergruppen ZB IT.xlsx"
 VORJAHR_DATEI = EINGABE_ORDNER / "toCompareLastYear.xlsx"
-AUSGABE_NAME = AUSGABE_ORDNER / "Veränderungen.xlsx"
+AUSGABE_DATEI = AUSGABE_ORDNER / "Veränderungen.xlsx"
 
 START_ROW = 3
 HEADERS = ["betrifft", "Gruppe", "Name"]
@@ -46,12 +46,10 @@ def clean(value) -> str:
     return re.sub(r"\s+", " ", str(value)).strip()
 
 
-def find_file(name: str) -> Path:
-    for ordner in (ORDNER, Path.cwd()):
-        path = ordner / name
-        if path.exists():
-            return path
-    sys.exit(f"Datei nicht gefunden: {name} (gesucht in {ORDNER} und {Path.cwd()})")
+def find_file(path: Path) -> Path:
+    if not path.exists():
+        sys.exit(f"Datei nicht gefunden: {path}")
+    return path
 
 
 def read_rows(path: Path):
@@ -101,7 +99,7 @@ def write_sheet(ws, title: str, rows) -> None:
 def main() -> None:
     aktuell_datei = find_file(AKTUELL_DATEI)
     vorjahr_datei = find_file(VORJAHR_DATEI)
-    ausgabe_datei = aktuell_datei.with_name(AUSGABE_NAME)
+    ausgabe_datei = AUSGABE_DATEI
 
     aktuell = read_rows(aktuell_datei)
     vorjahr = read_rows(vorjahr_datei)

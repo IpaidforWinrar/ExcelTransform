@@ -9,8 +9,9 @@ Bearbeitet die Exceltabelle "Auswertung Benutzergruppen.xlsx":
 Aufruf:
     python transform.py [Eingabedatei] [Ausgabedatei]
 
-Ohne Argumente wird "Auswertung Benutzergruppen.xlsx" im aktuellen Ordner verwendet
-und das Ergebnis als "Auswertung Benutzergruppen_bearbeitet.xlsx" gespeichert.
+Ohne Argumente wird "Auswertung Benutzergruppen.xlsx" aus "FAVIS DB Benutzergruppen/Eingabe Benutzergruppen"
+verwendet und das Ergebnis als "Auswertung Benutzergruppen_bearbeitet.xlsx" in
+"FAVIS DB Benutzergruppen/Ausgabe Benutzergruppen" gespeichert.
 """
 
 import sys
