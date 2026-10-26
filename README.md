@@ -16,6 +16,19 @@ FAVIS DB Sicherheitsfreigabe/
 
 Exceldateien und Logdateien werden nicht eingecheckt.
 
+## Aktenplan Auswertung
+
+`Aktenplan Auswertung/aktenplan.py` liest `AktenplanAlt.xlsx` (ab Zeile 3: Spalte B = Bereich,
+Spalte C = Aktenplan-Eintrag) und prüft, ob jeder Eintrag aus Spalte C nur einem Bereich zugeordnet
+ist ("unique") oder mehreren ("mehrfach").
+
+```bash
+python "Aktenplan Auswertung/aktenplan.py"
+```
+
+Ergebnis ist `Aktenplan Zuordnung.xlsx` mit einer Zeile pro Eintrag (Status, Bereiche, Anzahl Bereiche,
+Anzahl Zeilen, Zeilennummern). Mehrfach zugeordnete Einträge stehen oben.
+
 ## Installation
 
 ```bash
