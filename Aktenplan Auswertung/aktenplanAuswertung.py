@@ -16,6 +16,8 @@ Ablauf:
 
 Eingabe-Dateien (AktenplanNeu.xlsx, AktenplanAlt.xlsx, empty Aktenplan.xlsx, Aktenplan Zuordnung.xlsx):
     FAVIS DB Aktenplan/Eingabe Aktenplaene
+    Dieser Ordner ist schreibgeschützt: Das Skript liest dort nur. "empty Aktenplan.xlsx" wird in den
+    Ausgabe-Ordner kopiert und als "Aktenplan bearbeitet.xlsx" bearbeitet.
 Ausgabe ("Aktenplan bearbeitet.xlsx" und "Aktenplan Auswertung.log" mit allem, was im Terminal steht):
     FAVIS DB Aktenplan/Ausgabe Aktenplan
 
@@ -23,7 +25,10 @@ Aufruf:
     python aktenplanAuswertung.py
 """
 
+import os
 import re
+import shutil
+import stat
 import sys
 import traceback
 from copy import copy
@@ -123,7 +128,14 @@ def main() -> None:
 
     # Schritt 1: neuen Aktenplan in die Vorlage übertragen
     neu = load_workbook(NEU_DATEI, data_only=True).active
-    wb = load_workbook(VORLAGE_DATEI)
+    # Der Eingabe-Ordner ist schreibgeschützt: Die Vorlage wird als "Aktenplan bearbeitet.xlsx"
+    # in den Ausgabe-Ordner kopiert, alle weiteren Änderungen passieren nur an dieser Kopie.
+    AUSGABE_ORDNER.mkdir(parents=True, exist_ok=True)
+    if AUSGABE_DATEI.exists():
+        os.chmod(AUSGABE_DATEI, stat.S_IWRITE)  # Ergebnis eines früheren Laufs darf überschrieben werden
+    shutil.copyfile(VORLAGE_DATEI, AUSGABE_DATEI)  # ohne Dateirechte, die Kopie ist beschreibbar
+    os.chmod(AUSGABE_DATEI, stat.S_IWRITE)
+    wb = load_workbook(AUSGABE_DATEI)
     ws = wb.active
 
     heute = datetime.now()
@@ -137,8 +149,9 @@ def main() -> None:
             continue
         letzte_zeile = row_idx
         for col_idx, quelle in enumerate(zeile, start=1):
-            ziel = ws.cell(row=row_idx, column=col_idx + SPALTEN_VERSATZ, value=quelle.value)
-            ziel.number_format = quelle.number_format
+            # Nur Werte übertragen: Formate, Schriften und leere Zellen der Vorlage bleiben unverändert
+            if quelle.value is not None:
+                ws.cell(row=row_idx, column=col_idx + SPALTEN_VERSATZ).value = quelle.value
     print(f"{letzte_zeile - START_ROW + 1} Zeilen aus {NEU_DATEI.name} übertragen (bis Zeile {letzte_zeile}).")
 
     # Schritt 2: Zeilen markieren, die es im alten Aktenplan nicht gab

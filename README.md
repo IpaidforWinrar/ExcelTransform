@@ -51,7 +51,9 @@ python "Aktenplan Auswertung/aktenplanAuswertung.py"
 ```
 
 Eingabe: `FAVIS DB Aktenplan/Eingabe Aktenplaene`, Ausgabe (inkl. Logdatei `Aktenplan Auswertung.log`):
-`FAVIS DB Aktenplan/Ausgabe Aktenplan`.
+`FAVIS DB Aktenplan/Ausgabe Aktenplan`. Der Eingabe-Ordner wird nur gelesen: `empty Aktenplan.xlsx` wird in
+den Ausgabe-Ordner kopiert und als `Aktenplan bearbeitet.xlsx` bearbeitet. Übertragen werden nur Werte,
+Formate und übrige Inhalte der Vorlage bleiben unverändert.
 
 ## Installation
 
