@@ -34,6 +34,25 @@ Zusätzlich wird auf Widersprüche geprüft: Nennt der Eintrag in Spalte C selbs
 Spalte "Widerspruch" ein "ja" mit Erklärung. Ein Bereich zählt nur als eigenes Wort: "IT 1", "it1",
 "IT_1", "IT-1" und "IT-Leitung" werden erkannt, "IT 10", "WIT 1" und "IT.01.01.01" nicht.
 
+### aktenplanAuswertung.py
+
+Erstellt `Aktenplan bearbeitet.xlsx` aus dem neuen Aktenplan:
+
+1. `AktenplanNeu.xlsx` (Spalte A bis Q, ab Zeile 3) wird in `empty Aktenplan.xlsx` übertragen, ab Zeile 3
+   und zwei Spalten nach rechts (A → C, B → D, ... Q → S). Zeile 1 bekommt die Überschrift
+   "Berechtigung im Aktenplan ZB IT - Stand Monat Jahr".
+2. Zeilen, deren Schlüssel (Spalte D + E) in `AktenplanAlt.xlsx` fehlt, bekommen in Spalte A "neu" in roter Schrift.
+3. Jeder Wert aus Spalte C wird in Spalte A von `Aktenplan Zuordnung.xlsx` gesucht. Bei einem Treffer
+   kommt der Wert aus Spalte B der Zuordnung in Spalte B. Steht dort vorher ein anderer Wert, wird er
+   überschrieben und in der Logdatei festgehalten.
+
+```bash
+python "Aktenplan Auswertung/aktenplanAuswertung.py"
+```
+
+Eingabe: `FAVIS DB Aktenplan/Eingabe Aktenplaene`, Ausgabe (inkl. Logdatei `Aktenplan Auswertung.log`):
+`FAVIS DB Aktenplan/Ausgabe Aktenplan`.
+
 ## Installation
 
 ```bash
