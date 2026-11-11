@@ -13,6 +13,7 @@ Ablauf:
    gesucht. Bei einem Treffer kommt der Wert aus Spalte B der Zuordnung in Spalte B der Zeile.
    Zuvor wird der Inhalt von Spalte B gelesen: Ist die Zelle leer oder gleich, ist alles gut.
    Steht dort ein anderer Wert, wird er überschrieben und in der Logdatei festgehalten.
+   Werte aus Spalte C ohne Treffer werden ebenfalls im Log aufgelistet, jeder Wert nur einmal.
 
 Eingabe-Dateien (AktenplanNeu.xlsx, AktenplanAlt.xlsx, empty Aktenplan.xlsx, Aktenplan Zuordnung.xlsx):
     FAVIS DB Aktenplan/Eingabe Aktenplaene
@@ -173,6 +174,7 @@ def main() -> None:
     zuordnung, mehrfach = lese_zuordnung(ZUORDNUNG_DATEI)
     eingetragen = 0
     ohne_treffer = 0
+    ohne_treffer_werte = {}  # casefold -> Wert, in der Reihenfolge des ersten Auftretens
     abweichungen = []
     mehrfach_zeilen = []
     for row_idx in range(START_ROW, letzte_zeile + 1):
@@ -182,6 +184,7 @@ def main() -> None:
         wert = zuordnung.get(eintrag.casefold())
         if wert is None:
             ohne_treffer += 1
+            ohne_treffer_werte.setdefault(eintrag.casefold(), eintrag)  # jeder Wert nur einmal
             continue
 
         zelle = ws.cell(row=row_idx, column=COL_BEREICH)
@@ -194,6 +197,10 @@ def main() -> None:
             mehrfach_zeilen.append((row_idx, eintrag, wert))
 
     print(f"Bereich eingetragen: {eingetragen}, ohne Treffer in {ZUORDNUNG_DATEI.name}: {ohne_treffer}")
+    if ohne_treffer_werte:
+        print(f"Werte aus Spalte C ohne Treffer in {ZUORDNUNG_DATEI.name} ({len(ohne_treffer_werte)} verschiedene):")
+        for wert in ohne_treffer_werte.values():
+            print(f"  {wert}")
     if mehrfach_zeilen:
         print(f"Hinweis: {len(mehrfach_zeilen)} Zeilen mit mehrfach zugeordnetem Eintrag (mehrere Bereiche):")
         for row_idx, eintrag, wert in mehrfach_zeilen:
