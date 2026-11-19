@@ -135,6 +135,8 @@ und Personalnummer (Spalte F) ab Zeile 3; bei einem Treffer werden die Spalten I
 Ordner liegen neben dem Skript: `update Eingabe` (beide xlsx) und `update Ausgabe` (Ergebnis
 `filled Trafo Freeze-Liste.xlsx` und `trafoUpdate_Protokoll.txt` mit nicht gematchten und doppelten Keys).
 Schlüssel- und Kopierspalten lassen sich oben im Skript ändern (`KEY_COLUMNS`, `COPY_COLUMNS`, `EXCLUDE_COLUMNS`).
+Die Werte werden direkt in die Sheet-XML der kopierten Datei geschrieben (kein openpyxl-Speichern), sodass Datenverbindungen,
+Power Query und Formatierung der empty-Liste erhalten bleiben. Benötigt `lxml`.
 
 ```bash
 python "Trafo Freeze-Liste Update/trafoUpdate.py"
