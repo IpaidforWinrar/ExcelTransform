@@ -8,7 +8,8 @@ Primary Key (Stellennummer + Personalnummer) im Reiter "SOLL Wertstromzuordnung"
 Die Zielliste wird NICHT mit openpyxl neu gespeichert: Die Werte werden direkt in
 die Sheet-XML der kopierten Datei geschrieben. Alle anderen Teile der Datei
 (Datenverbindungen, Power Query, Slicer, Formatierung, Blattschutz, ...) bleiben
-unveraendert. openpyxl wird nur zum Lesen der Keys und der Quellwerte benutzt.
+unveraendert, ebenso alle Zeilen, in die nichts geschrieben wird. openpyxl wird
+nur zum Lesen der Keys und der Quellwerte benutzt.
 
 Ordner (relativ zu diesem Skript):
     update Eingabe/   empty Trafo Freeze-Liste.xlsx
@@ -16,7 +17,7 @@ Ordner (relativ zu diesem Skript):
     update Ausgabe/   filled Trafo Freeze-Liste.xlsx   (wird erzeugt)
                       trafoUpdate_Protokoll.txt         (wird erzeugt)
 
-Benoetigt: pip install openpyxl lxml
+Benoetigt nur openpyxl (sonst Python-Standardbibliothek).
 """
 
 import datetime
@@ -24,12 +25,13 @@ import os
 import re
 import shutil
 import sys
+import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
+from xml.sax.saxutils import escape
 
-from lxml import etree
 from openpyxl import load_workbook
 from openpyxl.cell.cell import MergedCell
 from openpyxl.utils import column_index_from_string, get_column_letter
@@ -79,10 +81,6 @@ RECALC_ON_OPEN = True
 
 NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-NS_PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
-NS_CT = "http://schemas.openxmlformats.org/package/2006/content-types"
-XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
-_ILLEGAL_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 # ----------------------------------------------------------------------------
@@ -128,28 +126,33 @@ def fmt_key(key):
     return " | ".join(key) if len(key) > 1 else key[0]
 
 
-def q(tag):
-    return f"{{{NS}}}{tag}"
-
-
-def col_of(ref):
-    return column_index_from_string(re.match(r"[A-Z]+", ref).group())
-
-
 # ----------------------------------------------------------------------------
-# XML-Ebene
+# XML-Ebene (reine Textbearbeitung: alles, was nicht angefasst wird, bleibt byte-genau)
 # ----------------------------------------------------------------------------
+
+SHEETDATA_RE = re.compile(r"<sheetData\s*/>|<sheetData(?=[\s>])[^>]*>(.*?)</sheetData>", re.S)
+ROW_RE = re.compile(r"<row(?=[\s/>])[^>]*?/>|<row(?=[\s/>])[^>]*>.*?</row>", re.S)
+CELL_RE = re.compile(r"<c(?=[\s/>])[^>]*?/>|<c(?=[\s/>])[^>]*>.*?</c>", re.S)
+ROW_OPEN_RE = re.compile(r"<row((?:\s[^>]*?)?)(/?)>")
+CELL_OPEN_RE = re.compile(r"<c((?:\s[^>]*?)?)(/?)>")
+ATTR_RE = re.compile(r"""([\w:.\-]+)\s*=\s*("[^"]*"|'[^']*')""")
+ROWNUM_RE = re.compile(r"""<row[^>]*?\sr\s*=\s*["'](\d+)["']""")
+CELLREF_RE = re.compile(r"""\sr\s*=\s*["']([A-Z]+)(\d+)["']""")
+SPANS_RE = re.compile(r"""\sspans\s*=\s*("[^"]*"|'[^']*')""")
+FORMULA_TAG_RE = re.compile(r"<f(?=[\s/>])[^>]*>")
+_ILLEGAL_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
 
 def find_sheet_part(zin, sheet_name):
     """Pfad der Sheet-XML im ZIP fuer den Reiternamen (ueber workbook.xml + rels)."""
-    wb = etree.fromstring(zin.read("xl/workbook.xml"))
+    wb = ET.fromstring(zin.read("xl/workbook.xml"))
     rid = None
-    for sheet in wb.iter(q("sheet")):
+    for sheet in wb.iter(f"{{{NS}}}sheet"):
         if sheet.get("name") == sheet_name:
             rid = sheet.get(f"{{{NS_R}}}id")
     if rid is None:
         raise KeyError(f"Reiter '{sheet_name}' nicht in workbook.xml gefunden")
-    rels = etree.fromstring(zin.read("xl/_rels/workbook.xml.rels"))
+    rels = ET.fromstring(zin.read("xl/_rels/workbook.xml.rels"))
     for rel in rels:
         if rel.get("Id") == rid:
             target = rel.get("Target")
@@ -159,108 +162,107 @@ def find_sheet_part(zin, sheet_name):
     raise KeyError(f"Relationship {rid} nicht gefunden")
 
 
-def get_row(sheet_data, rows, r):
-    """Zeilen-Element holen oder (an der richtigen Stelle) neu anlegen."""
-    if r in rows:
-        return rows[r]
-    new = etree.Element(q("row"))
-    new.set("r", str(r))
-    nxt = next((el for n, el in sorted(rows.items()) if n > r), None)
-    if nxt is not None:
-        nxt.addprevious(new)
-    else:
-        sheet_data.append(new)
-    rows[r] = new
-    return new
-
-
-def get_cell(row_el, r, c):
-    """Zellen-Element holen oder (in Spaltenreihenfolge) neu anlegen. Stil bleibt erhalten."""
-    nxt = None
-    for el in row_el:
-        if el.tag != q("c"):
-            continue
-        cc = col_of(el.get("r"))
-        if cc == c:
-            return el
-        if cc > c:
-            nxt = el
-            break
-    new = etree.Element(q("c"))
-    new.set("r", f"{get_column_letter(c)}{r}")
-    if nxt is not None:
-        nxt.addprevious(new)
-    else:
-        row_el.append(new)
-    return new
-
-
-def write_value(c_el, src_cell, epoch):
-    """Wert in <c> schreiben. Stil (s=...) bleibt, Formeln/alte Werte werden entfernt.
-    Gibt zurueck: (hatte_Formel, war_Shared_Formula_Master)"""
-    had_formula, shared_master = False, False
-    for child in list(c_el):
-        if child.tag == q("f"):
-            had_formula = True
-            shared_master = child.get("t") == "shared" and child.get("ref") is not None
-        c_el.remove(child)
-    if "t" in c_el.attrib:
-        del c_el.attrib["t"]
+def cell_xml(ref, attrs, src_cell, epoch):
+    """Neues <c>-Element. Alle Attribute des alten Elements (Stil s=...) bleiben, nur t wird neu gesetzt."""
+    kept = " ".join(f"{n}={v}" for n, v in attrs if n not in ("r", "t"))
+    prefix = f'<c r="{ref}"' + (f" {kept}" if kept else "")
 
     v = src_cell.value
     if v is None:
-        return had_formula, shared_master
-
+        return prefix + "/>"
     if src_cell.data_type == "e":
-        c_el.set("t", "e")
-        etree.SubElement(c_el, q("v")).text = str(v)
-    elif isinstance(v, bool):
-        c_el.set("t", "b")
-        etree.SubElement(c_el, q("v")).text = "1" if v else "0"
-    elif isinstance(v, (int, float, Decimal)):
-        etree.SubElement(c_el, q("v")).text = repr(v) if isinstance(v, float) else str(v)
-    elif isinstance(v, (datetime.datetime, datetime.date, datetime.time, datetime.timedelta)):
-        etree.SubElement(c_el, q("v")).text = repr(to_excel(v, epoch=epoch))
-    else:
-        c_el.set("t", "inlineStr")
-        is_el = etree.SubElement(c_el, q("is"))
-        t_el = etree.SubElement(is_el, q("t"))
-        t_el.text = _ILLEGAL_XML.sub("", str(v))
-        t_el.set(XML_SPACE, "preserve")
-    return had_formula, shared_master
+        return f'{prefix} t="e"><v>{escape(str(v))}</v></c>'
+    if isinstance(v, bool):
+        return f'{prefix} t="b"><v>{1 if v else 0}</v></c>'
+    if isinstance(v, (int, Decimal)):
+        return f"{prefix}><v>{v}</v></c>"
+    if isinstance(v, float):
+        return f"{prefix}><v>{v!r}</v></c>"
+    if isinstance(v, (datetime.datetime, datetime.date, datetime.time, datetime.timedelta)):
+        return f"{prefix}><v>{to_excel(v, epoch=epoch)!r}</v></c>"
+    text = escape(_ILLEGAL_XML.sub("", str(v)))
+    return f'{prefix} t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
 
 
-def set_full_calc(wb_xml):
-    """<calcPr fullCalcOnLoad="1"/> setzen (an schema-konformer Stelle anlegen, falls fehlend)."""
-    root = etree.fromstring(wb_xml)
-    calc = root.find(q("calcPr"))
-    if calc is None:
-        calc = etree.Element(q("calcPr"))
-        successors = {"oleSize", "customWorkbookViews", "pivotCaches", "smartTagPr", "smartTagTypes",
-                      "webPublishing", "fileRecoveryPr", "webPublishObjects", "extLst"}
-        nxt = next((el for el in root if etree.QName(el).localname in successors), None)
-        if nxt is not None:
-            nxt.addprevious(calc)
+def patch_row(row_text, r, cols_src, epoch, stats):
+    """Zeile r: Zellen aus cols_src ({spalte: quellzelle}) schreiben, Rest der Zeile bleibt unveraendert."""
+    m = ROW_OPEN_RE.match(row_text)
+    open_attrs = SPANS_RE.sub("", m.group(1))  # spans ist nur ein Optimierungshinweis
+    inner = "" if m.group(2) else row_text[m.end():-len("</row>")]
+
+    cells = [(int(column_index_from_string(CELLREF_RE.search(c.group()).group(1))), c.group())
+             for c in CELL_RE.finditer(inner)]
+    cell_ms = list(CELL_RE.finditer(inner))
+    head = inner[:cell_ms[0].start()] if cell_ms else inner
+    tail = inner[cell_ms[-1].end():] if cell_ms else ""
+    by_col = dict(cells)
+
+    for c, src_cell in cols_src.items():
+        ref = f"{get_column_letter(c)}{r}"
+        old = by_col.get(c)
+        attrs = []
+        if old is not None:
+            om = CELL_OPEN_RE.match(old)
+            attrs = ATTR_RE.findall(om.group(1))
+            ftag = FORMULA_TAG_RE.search(old[om.end():])
+            if ftag:
+                stats["formulas"] += 1
+                if re.search(r"""\bt\s*=\s*["']shared["']""", ftag.group()) and re.search(r"\bref\s*=", ftag.group()):
+                    stats["shared_masters"].append(ref)
+        by_col[c] = cell_xml(ref, attrs, src_cell, epoch)
+        stats["cells"] += 1
+
+    body = "".join(by_col[c] for c in sorted(by_col))
+    return f"<row{open_attrs}>{head if not cells else ''}{body}{tail}</row>"
+
+
+def patch_sheet_xml(xml, plan, epoch):
+    """plan: {zeilennummer: {spalte: quellzelle}}. Gibt (neues_xml, stats) zurueck."""
+    stats = {"cells": 0, "formulas": 0, "shared_masters": []}
+    sd = SHEETDATA_RE.search(xml)
+    if sd is None:
+        raise ValueError("<sheetData> nicht gefunden (ungewoehnliches Sheet-XML-Format)")
+    body = sd.group(1) or ""
+    rows = {}
+    for m in ROW_RE.finditer(body):
+        rows[int(ROWNUM_RE.search(m.group()).group(1))] = m.group()
+
+    for r, cols_src in plan.items():
+        row_text = rows.get(r, f'<row r="{r}"></row>')
+        if r not in rows:
+            row_text = f'<row r="{r}"/>'
+        rows[r] = patch_row(row_text, r, cols_src, epoch, stats)
+
+    new_body = "".join(rows[r] for r in sorted(rows))
+    return xml[:sd.start()] + f"<sheetData>{new_body}</sheetData>" + xml[sd.end():], stats
+
+
+def set_full_calc(wb_text):
+    """calcPr fullCalcOnLoad="1" setzen. None, wenn workbook.xml ungewoehnlich aufgebaut ist."""
+    m = re.search(r"<calcPr(?=[\s/>])[^>]*?/?>", wb_text)
+    if m:
+        tag = m.group()
+        if "fullCalcOnLoad" in tag:
+            new = re.sub(r"""fullCalcOnLoad\s*=\s*("[^"]*"|'[^']*')""", 'fullCalcOnLoad="1"', tag)
         else:
-            root.append(calc)
-    calc.set("fullCalcOnLoad", "1")
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+            new = re.sub(r"\s*(/?)>$", r' fullCalcOnLoad="1"\1>', tag)
+        return wb_text[:m.start()] + new + wb_text[m.end():]
+    successors = re.search(
+        r"<(oleSize|customWorkbookViews|pivotCaches|smartTagPr|smartTagTypes|webPublishing|"
+        r"fileRecoveryPr|webPublishObjects|extLst)(?=[\s/>])", wb_text)
+    pos = successors.start() if successors else wb_text.rfind("</workbook>")
+    if pos < 0:
+        return None
+    return wb_text[:pos] + '<calcPr fullCalcOnLoad="1"/>' + wb_text[pos:]
 
 
 def drop_calc_chain(zin):
-    """calcChain.xml entfernen (Excel baut sie neu auf). Gibt geaenderte Teile zurueck."""
-    changes = {}
-    ct = etree.fromstring(zin.read("[Content_Types].xml"))
-    for el in list(ct):
-        if el.get("PartName") == "/xl/calcChain.xml":
-            ct.remove(el)
-    changes["[Content_Types].xml"] = etree.tostring(ct, xml_declaration=True, encoding="UTF-8", standalone=True)
-    rels = etree.fromstring(zin.read("xl/_rels/workbook.xml.rels"))
-    for el in list(rels):
-        if el.get("Type", "").endswith("/calcChain"):
-            rels.remove(el)
-    changes["xl/_rels/workbook.xml.rels"] = etree.tostring(rels, xml_declaration=True, encoding="UTF-8", standalone=True)
-    return changes
+    """calcChain.xml aus Content-Types und Beziehungen austragen (Excel baut sie neu auf)."""
+    ct = zin.read("[Content_Types].xml").decode("utf-8")
+    ct = re.sub(r"""<Override\b[^>]*PartName\s*=\s*["']/xl/calcChain\.xml["'][^>]*/>""", "", ct)
+    rels = zin.read("xl/_rels/workbook.xml.rels").decode("utf-8")
+    rels = re.sub(r"""<Relationship\b[^>]*/calcChain["'][^>]*/>""", "", rels)
+    return {"[Content_Types].xml": ct.encode("utf-8"), "xl/_rels/workbook.xml.rels": rels.encode("utf-8")}
 
 
 def rewrite_zip(path, replacements, removed):
@@ -339,40 +341,29 @@ def main():
             assignments[tgt_row] = rows_s[0]
 
     # 4) Werte direkt in die Sheet-XML der kopierten Datei schreiben
-    cells_written = 0
-    formulas_overwritten = 0
-    shared_masters = []
+    plan = {
+        tgt_row: {c: ws_s.cell(src_row, c) for c in copy_cols
+                  if not isinstance(ws_t.cell(tgt_row, c), MergedCell)}
+        for tgt_row, src_row in assignments.items()
+    }
+    recalc_failed = False
     with zipfile.ZipFile(filled_path) as zin:
         sheet_part = find_sheet_part(zin, SHEET_NAME)
-        root = etree.fromstring(zin.read(sheet_part))
-        sheet_data = root.find(q("sheetData"))
-        rows = {int(el.get("r")): el for el in sheet_data.findall(q("row"))}
-
-        for tgt_row, src_row in sorted(assignments.items()):
-            row_el = get_row(sheet_data, rows, tgt_row)
-            row_el.attrib.pop("spans", None)  # nur ein Optimierungshinweis, wird von Excel neu gesetzt
-            for c in copy_cols:
-                if isinstance(ws_t.cell(tgt_row, c), MergedCell):
-                    continue
-                c_el = get_cell(row_el, tgt_row, c)
-                had_f, was_master = write_value(c_el, ws_s.cell(src_row, c), wb_source.epoch)
-                cells_written += 1
-                if had_f:
-                    formulas_overwritten += 1
-                if was_master:
-                    shared_masters.append(f"{get_column_letter(c)}{tgt_row}")
-
-        replacements = {
-            sheet_part: etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
-        }
+        new_xml, stats = patch_sheet_xml(zin.read(sheet_part).decode("utf-8"), plan, wb_source.epoch)
+        replacements = {sheet_part: new_xml.encode("utf-8")}
         removed = set()
         if assignments and RECALC_ON_OPEN:
-            replacements["xl/workbook.xml"] = set_full_calc(zin.read("xl/workbook.xml"))
-        if formulas_overwritten and "xl/calcChain.xml" in zin.namelist():
+            wb_xml = set_full_calc(zin.read("xl/workbook.xml").decode("utf-8"))
+            if wb_xml is None:
+                recalc_failed = True
+            else:
+                replacements["xl/workbook.xml"] = wb_xml.encode("utf-8")
+        if stats["formulas"] and "xl/calcChain.xml" in zin.namelist():
             replacements.update(drop_calc_chain(zin))
             removed.add("xl/calcChain.xml")
 
     rewrite_zip(filled_path, replacements, removed)
+    cells_written, formulas_overwritten, shared_masters = stats["cells"], stats["formulas"], stats["shared_masters"]
 
     # 5) Protokoll
     def block(title, mapping, label):
@@ -413,6 +404,9 @@ def main():
     if shared_masters:
         log += ["WARNUNG: Ueberschriebene Zellen waren Master einer 'Shared Formula' - abhaengige Formelzellen",
                 "ausserhalb des kopierten Bereichs koennen dadurch kaputt sein: " + ", ".join(shared_masters), ""]
+    if recalc_failed:
+        log += ["HINWEIS: 'Neuberechnen beim Oeffnen' konnte nicht gesetzt werden (workbook.xml ungewoehnlich).",
+                "In Excel einmal Strg+Alt+Umschalt+F9 druecken.", ""]
 
     log_path.write_text("\n".join(log), encoding="utf-8")
 
