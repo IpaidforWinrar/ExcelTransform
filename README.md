@@ -125,3 +125,17 @@ Ergebnis sind 10 Dateien `Auswertung Sicherheitsfreigabe und Gruppenzuordnung ZB
 (X = IT 1 bis IT 7, IT-L_Stab, IT-übergreifend, IT - gesamt) in `Ausgabe Sicherheitsfreigabe`.
 Die Gesamtliste hat zusätzlich Spalte K "Zuordnung". Dort liegt auch `Auswertung Sicherheitsfreigabe.log`
 mit allem, was im Terminal ausgegeben wurde.
+
+## Trafo Freeze-Liste Update
+
+`Trafo Freeze-Liste Update/trafoUpdate.py` überträgt die Werte der `Trafo Freeze-Liste.xlsx` in eine Kopie der
+`empty Trafo Freeze-Liste.xlsx`. Gematcht wird im Reiter "SOLL Wertstromzuordnung" über Stellennummer (Spalte D)
+und Personalnummer (Spalte F) ab Zeile 3; bei einem Treffer werden die Spalten I bis BJ übernommen.
+
+Ordner liegen neben dem Skript: `update Eingabe` (beide xlsx) und `update Ausgabe` (Ergebnis
+`filled Trafo Freeze-Liste.xlsx` und `trafoUpdate_Protokoll.txt` mit nicht gematchten und doppelten Keys).
+Schlüssel- und Kopierspalten lassen sich oben im Skript ändern (`KEY_COLUMNS`, `COPY_COLUMNS`, `EXCLUDE_COLUMNS`).
+
+```bash
+python "Trafo Freeze-Liste Update/trafoUpdate.py"
+```
