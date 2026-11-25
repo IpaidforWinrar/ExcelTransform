@@ -3,7 +3,8 @@ trafoUpdate.py
 
 Uebernimmt die Werte aus "Trafo Freeze-Liste.xlsx" in eine Kopie der
 "empty Trafo Freeze-Liste.xlsx". Zugeordnet wird ueber den zusammengesetzten
-Primary Key (Stellennummer + Personalnummer) im Reiter "SOLL Wertstromzuordnung".
+Primary Key (Stellennummer + Personalnummer), getrennt fuer jeden Reiter, der
+unten in SHEETS eingetragen ist.
 
 Die Zielliste wird NICHT mit openpyxl neu gespeichert: Die Werte werden direkt in
 die Sheet-XML der kopierten Datei geschrieben. Alle anderen Teile der Datei
@@ -15,7 +16,7 @@ Ordner (relativ zu diesem Skript):
     update Eingabe/   empty Trafo Freeze-Liste.xlsx
                       Trafo Freeze-Liste.xlsx
     update Ausgabe/   filled Trafo Freeze-Liste.xlsx   (wird erzeugt)
-                      trafoUpdate_Protokoll.txt         (wird erzeugt)
+                      trafoUpdate_Protokoll.txt         (wird erzeugt, alle Reiter)
 
 Benoetigt nur openpyxl (sonst Python-Standardbibliothek).
 """
@@ -49,21 +50,22 @@ SOURCE_FILE = "Trafo Freeze-Liste.xlsx"
 FILLED_FILE = "filled Trafo Freeze-Liste.xlsx"
 LOG_FILE = "trafoUpdate_Protokoll.txt"
 
-# Reiter, in dem gematcht und kopiert wird
-SHEET_NAME = "SOLL Wertstromzuordnung"
+# Reiter, die bearbeitet werden (in dieser Reihenfolge). Pro Reiter:
+#   name            Reitername (exakt, auch Sonderzeichen wie & )
+#   copy_columns    zu uebernehmende Spalten. Einzelne Spalten und/oder Bereiche,
+#                   z.B. ["I:BJ"]  oder  ["I:M", "P", "R:BJ"]
+# Optional pro Reiter (sonst gelten die Standardwerte unten):
+#   key_columns     Primary-Key-Spalten (zusammengesetzt)
+#   exclude_columns Spalten, die trotzdem NICHT uebernommen werden, z.B. ["K", "AA:AC"]
+#   first_data_row  erste Datenzeile (darueber sind Kopfzeilen)
+SHEETS = [
+    {"name": "SOLL Wertstromzuordnung", "copy_columns": ["I:BJ"]},
+    {"name": "IST ProdukteServices&Rolle", "copy_columns": ["I:BB"]},
+]
 
-# Erste Datenzeile (alles darueber sind Kopfzeilen)
+# Standardwerte fuer alle Reiter
+KEY_COLUMNS = ["D", "F"]   # Stellennummer, Personalnummer
 FIRST_DATA_ROW = 3
-
-# Primary-Key-Spalten (zusammengesetzter Schluessel): Stellennummer, Personalnummer
-KEY_COLUMNS = ["D", "F"]
-
-# Spalten, die uebernommen werden. Einzelne Spalten und/oder Bereiche moeglich,
-# z.B. ["I:BJ"]  oder  ["I:M", "P", "R:BJ"]
-COPY_COLUMNS = ["I:BJ"]
-
-# Spalten, die trotzdem NICHT uebernommen werden (gleiches Format), z.B. ["K", "AA:AC"]
-EXCLUDE_COLUMNS = []
 
 # Was tun, wenn ein Key mehrfach vorkommt (in Quelle oder Ziel)?
 #   "skip"  = nicht uebernehmen, nur im Protokoll auflisten
@@ -101,6 +103,19 @@ def parse_columns(specs):
     return sorted(result)
 
 
+def fmt_columns(cols):
+    """[9, 10, 11, 16] -> 'I:K, P'"""
+    parts, start = [], None
+    for i, c in enumerate(cols):
+        if start is None:
+            start = c
+        if i + 1 == len(cols) or cols[i + 1] != c + 1:
+            a, b = get_column_letter(start), get_column_letter(c)
+            parts.append(a if start == c else f"{a}:{b}")
+            start = None
+    return ", ".join(parts)
+
+
 def norm(value):
     """Key-Wert vereinheitlichen: None -> '', 123.0 -> '123', Leerzeichen entfernen."""
     if value is None:
@@ -111,10 +126,10 @@ def norm(value):
     return text.lower() if KEY_IGNORE_CASE else text
 
 
-def read_keys(ws, key_cols):
-    """Liefert {key_tuple: [zeilennummern]} ab FIRST_DATA_ROW. Komplett leere Keys werden uebersprungen."""
+def read_keys(ws, key_cols, first_row):
+    """Liefert {key_tuple: [zeilennummern]} ab first_row. Komplett leere Keys werden uebersprungen."""
     index = defaultdict(list)
-    for row in range(FIRST_DATA_ROW, ws.max_row + 1):
+    for row in range(first_row, ws.max_row + 1):
         key = tuple(norm(ws.cell(row, c).value) for c in key_cols)
         if all(part == "" for part in key):
             continue
@@ -190,12 +205,10 @@ def patch_row(row_text, r, cols_src, epoch, stats):
     open_attrs = SPANS_RE.sub("", m.group(1))  # spans ist nur ein Optimierungshinweis
     inner = "" if m.group(2) else row_text[m.end():-len("</row>")]
 
-    cells = [(int(column_index_from_string(CELLREF_RE.search(c.group()).group(1))), c.group())
-             for c in CELL_RE.finditer(inner)]
     cell_ms = list(CELL_RE.finditer(inner))
+    by_col = {column_index_from_string(CELLREF_RE.search(c.group()).group(1)): c.group() for c in cell_ms}
     head = inner[:cell_ms[0].start()] if cell_ms else inner
     tail = inner[cell_ms[-1].end():] if cell_ms else ""
-    by_col = dict(cells)
 
     for c, src_cell in cols_src.items():
         ref = f"{get_column_letter(c)}{r}"
@@ -213,7 +226,7 @@ def patch_row(row_text, r, cols_src, epoch, stats):
         stats["cells"] += 1
 
     body = "".join(by_col[c] for c in sorted(by_col))
-    return f"<row{open_attrs}>{head if not cells else ''}{body}{tail}</row>"
+    return f"<row{open_attrs}>{head if not cell_ms else ''}{body}{tail}</row>"
 
 
 def patch_sheet_xml(xml, plan, epoch):
@@ -228,10 +241,7 @@ def patch_sheet_xml(xml, plan, epoch):
         rows[int(ROWNUM_RE.search(m.group()).group(1))] = m.group()
 
     for r, cols_src in plan.items():
-        row_text = rows.get(r, f'<row r="{r}"></row>')
-        if r not in rows:
-            row_text = f'<row r="{r}"/>'
-        rows[r] = patch_row(row_text, r, cols_src, epoch, stats)
+        rows[r] = patch_row(rows.get(r, f'<row r="{r}"/>'), r, cols_src, epoch, stats)
 
     new_body = "".join(rows[r] for r in sorted(rows))
     return xml[:sd.start()] + f"<sheetData>{new_body}</sheetData>" + xml[sd.end():], stats
@@ -280,6 +290,102 @@ def rewrite_zip(path, replacements, removed):
 
 
 # ----------------------------------------------------------------------------
+# Matching pro Reiter
+# ----------------------------------------------------------------------------
+
+def match_sheet(cfg, wb_target, wb_source):
+    """Keys vergleichen und festlegen, welche Zielzeile welche Quellzeile bekommt (noch nichts schreiben)."""
+    name = cfg["name"]
+    first_row = cfg.get("first_data_row", FIRST_DATA_ROW)
+    key_cols = parse_columns(cfg.get("key_columns", KEY_COLUMNS))
+    excluded = set(parse_columns(cfg.get("exclude_columns", [])))
+    copy_cols = [c for c in parse_columns(cfg["copy_columns"]) if c not in excluded]
+    if not copy_cols:
+        sys.exit(f"Reiter '{name}': keine Spalten zum Kopieren konfiguriert (copy_columns).")
+    ws_t, ws_s = wb_target[name], wb_source[name]
+
+    header_diffs = []
+    for row in range(1, first_row):
+        for c in copy_cols:
+            a, b = norm(ws_t.cell(row, c).value), norm(ws_s.cell(row, c).value)
+            if a != b:
+                header_diffs.append(f"{get_column_letter(c)}{row}: Ziel='{a}' / Quelle='{b}'")
+
+    idx_t = read_keys(ws_t, key_cols, first_row)
+    idx_s = read_keys(ws_s, key_cols, first_row)
+
+    assignments = {}  # zielzeile -> quellzeile
+    skipped_dups = 0
+    for key, rows_t in idx_t.items():
+        if key not in idx_s:
+            continue
+        rows_s = idx_s[key]
+        if DUPLICATE_POLICY == "skip" and (len(rows_t) > 1 or len(rows_s) > 1):
+            skipped_dups += len(rows_t)
+            continue
+        for tgt_row in rows_t:
+            assignments[tgt_row] = rows_s[0]
+
+    plan = {
+        tgt_row: {c: ws_s.cell(src_row, c) for c in copy_cols
+                  if not isinstance(ws_t.cell(tgt_row, c), MergedCell)}
+        for tgt_row, src_row in assignments.items()
+    }
+    return {
+        "name": name, "key_cols": key_cols, "copy_cols": copy_cols,
+        "idx_t": idx_t, "idx_s": idx_s,
+        "dup_t": {k: r for k, r in idx_t.items() if len(r) > 1},
+        "dup_s": {k: r for k, r in idx_s.items() if len(r) > 1},
+        "unmatched_t": {k: r for k, r in idx_t.items() if k not in idx_s},
+        "unmatched_s": {k: r for k, r in idx_s.items() if k not in idx_t},
+        "assignments": assignments, "skipped_dups": skipped_dups,
+        "header_diffs": header_diffs, "plan": plan, "stats": None,
+    }
+
+
+def sheet_log(res):
+    """Protokollzeilen fuer einen Reiter."""
+    def block(title, mapping, label):
+        lines = [f"{title} ({len(mapping)})", "-" * 60]
+        if not mapping:
+            lines.append("  (keine)")
+        for key, rows_ in sorted(mapping.items()):
+            lines.append(f"  {fmt_key(key)}   [{label} Zeile {', '.join(map(str, rows_))}]")
+        lines.append("")
+        return lines
+
+    stats = res["stats"]
+    title = f"REITER: {res['name']}"
+    log = [
+        "=" * 70, title, "=" * 70,
+        f"Primary Key (Spalten): {' + '.join(get_column_letter(c) for c in res['key_cols'])}"
+        "  - Format unten: Stellennummer | Personalnummer",
+        f"Kopierte Spalten: {fmt_columns(res['copy_cols'])}",
+        "",
+        "ZUSAMMENFASSUNG",
+        "-" * 60,
+        f"  Zeilen in Ziel (empty):     {sum(len(r) for r in res['idx_t'].values())}",
+        f"  Zeilen in Quelle (Freeze):  {sum(len(r) for r in res['idx_s'].values())}",
+        f"  Zeilen uebernommen:         {len(res['assignments'])}",
+        f"  Zellen geschrieben:         {stats['cells']}",
+        f"  Zeilen wegen Duplikat uebersprungen: {res['skipped_dups']}",
+        f"  Formeln im Ziel durch Werte ersetzt: {stats['formulas']}",
+        "",
+    ]
+    log += block("NICHT GEMATCHT - nur in 'empty' (Ziel) vorhanden", res["unmatched_t"], "empty")
+    log += block("NICHT GEMATCHT - nur in 'Trafo Freeze-Liste' (Quelle) vorhanden", res["unmatched_s"], "Freeze")
+    log += block("DOPPELTE KEYS in 'empty' (Ziel)", res["dup_t"], "empty")
+    log += block("DOPPELTE KEYS in 'Trafo Freeze-Liste' (Quelle)", res["dup_s"], "Freeze")
+    if res["header_diffs"]:
+        log += [f"UNTERSCHIEDLICHE KOPFZEILEN in kopierten Spalten ({len(res['header_diffs'])})", "-" * 60]
+        log += [f"  {d}" for d in res["header_diffs"]] + [""]
+    if stats["shared_masters"]:
+        log += ["WARNUNG: Ueberschriebene Zellen waren Master einer 'Shared Formula' - abhaengige Formelzellen",
+                "ausserhalb des kopierten Bereichs koennen dadurch kaputt sein: " + ", ".join(stats["shared_masters"]), ""]
+    return log
+
+
+# ----------------------------------------------------------------------------
 # Hauptprogramm
 # ----------------------------------------------------------------------------
 
@@ -293,12 +399,6 @@ def main():
         if not p.exists():
             sys.exit(f"Datei nicht gefunden: {p}")
 
-    key_cols = parse_columns(KEY_COLUMNS)
-    excluded = set(parse_columns(EXCLUDE_COLUMNS))
-    copy_cols = [c for c in parse_columns(COPY_COLUMNS) if c not in excluded]
-    if not copy_cols:
-        sys.exit("Keine Spalten zum Kopieren konfiguriert (COPY_COLUMNS).")
-
     # 1) empty -> Ausgabe kopieren und umbenennen
     out_dir.mkdir(exist_ok=True)
     shutil.copyfile(empty_path, filled_path)
@@ -307,117 +407,57 @@ def main():
     # 2) Nur LESEN mit openpyxl (wird nie gespeichert): Keys und Quellwerte
     wb_target = load_workbook(filled_path, data_only=True)
     wb_source = load_workbook(source_path, data_only=True)
-    for name, wb in (("Ziel", wb_target), ("Quelle", wb_source)):
-        if SHEET_NAME not in wb.sheetnames:
-            sys.exit(f"Reiter '{SHEET_NAME}' fehlt in {name}-Datei. Vorhanden: {wb.sheetnames}")
-    ws_t, ws_s = wb_target[SHEET_NAME], wb_source[SHEET_NAME]
+    for cfg in SHEETS:
+        for label, wb in (("Ziel", wb_target), ("Quelle", wb_source)):
+            if cfg["name"] not in wb.sheetnames:
+                sys.exit(f"Reiter '{cfg['name']}' fehlt in {label}-Datei. Vorhanden: {wb.sheetnames}")
 
-    header_diffs = []
-    for row in range(1, FIRST_DATA_ROW):
-        for c in copy_cols:
-            a, b = norm(ws_t.cell(row, c).value), norm(ws_s.cell(row, c).value)
-            if a != b:
-                header_diffs.append(f"{get_column_letter(c)}{row}: Ziel='{a}' / Quelle='{b}'")
+    # 3) Pro Reiter: Keys vergleichen
+    results = [match_sheet(cfg, wb_target, wb_source) for cfg in SHEETS]
 
-    idx_t = read_keys(ws_t, key_cols)
-    idx_s = read_keys(ws_s, key_cols)
-
-    dup_t = {k: r for k, r in idx_t.items() if len(r) > 1}
-    dup_s = {k: r for k, r in idx_s.items() if len(r) > 1}
-    unmatched_t = {k: r for k, r in idx_t.items() if k not in idx_s}
-    unmatched_s = {k: r for k, r in idx_s.items() if k not in idx_t}
-
-    # 3) Zuordnung Zielzeile -> Quellzeile
-    assignments = {}  # zielzeile -> quellzeile
-    skipped_dups = 0
-    for key, rows_t in idx_t.items():
-        if key not in idx_s:
-            continue
-        rows_s = idx_s[key]
-        if DUPLICATE_POLICY == "skip" and (len(rows_t) > 1 or len(rows_s) > 1):
-            skipped_dups += len(rows_t)
-            continue
-        for tgt_row in rows_t:
-            assignments[tgt_row] = rows_s[0]
-
-    # 4) Werte direkt in die Sheet-XML der kopierten Datei schreiben
-    plan = {
-        tgt_row: {c: ws_s.cell(src_row, c) for c in copy_cols
-                  if not isinstance(ws_t.cell(tgt_row, c), MergedCell)}
-        for tgt_row, src_row in assignments.items()
-    }
+    # 4) Werte direkt in die Sheet-XML der kopierten Datei schreiben (alle Reiter in einem Durchgang)
     recalc_failed = False
     with zipfile.ZipFile(filled_path) as zin:
-        sheet_part = find_sheet_part(zin, SHEET_NAME)
-        new_xml, stats = patch_sheet_xml(zin.read(sheet_part).decode("utf-8"), plan, wb_source.epoch)
-        replacements = {sheet_part: new_xml.encode("utf-8")}
-        removed = set()
-        if assignments and RECALC_ON_OPEN:
+        replacements, removed = {}, set()
+        for res in results:
+            part = find_sheet_part(zin, res["name"])
+            new_xml, res["stats"] = patch_sheet_xml(zin.read(part).decode("utf-8"), res["plan"], wb_source.epoch)
+            replacements[part] = new_xml.encode("utf-8")
+        if RECALC_ON_OPEN and any(res["assignments"] for res in results):
             wb_xml = set_full_calc(zin.read("xl/workbook.xml").decode("utf-8"))
             if wb_xml is None:
                 recalc_failed = True
             else:
                 replacements["xl/workbook.xml"] = wb_xml.encode("utf-8")
-        if stats["formulas"] and "xl/calcChain.xml" in zin.namelist():
+        if any(res["stats"]["formulas"] for res in results) and "xl/calcChain.xml" in zin.namelist():
             replacements.update(drop_calc_chain(zin))
             removed.add("xl/calcChain.xml")
 
     rewrite_zip(filled_path, replacements, removed)
-    cells_written, formulas_overwritten, shared_masters = stats["cells"], stats["formulas"], stats["shared_masters"]
 
-    # 5) Protokoll
-    def block(title, mapping, label):
-        lines = [f"{title} ({len(mapping)})", "-" * 60]
-        if not mapping:
-            lines.append("  (keine)")
-        for key, rows_ in sorted(mapping.items()):
-            lines.append(f"  {fmt_key(key)}   [{label} Zeile {', '.join(map(str, rows_))}]")
-        lines.append("")
-        return lines
-
-    key_names = " + ".join(get_column_letter(c) for c in key_cols)
-    copy_names = ", ".join(get_column_letter(c) for c in copy_cols)
+    # 5) Protokoll (eine Datei, ein Abschnitt pro Reiter)
     log = [
         f"trafoUpdate Protokoll - {datetime.datetime.now():%d.%m.%Y %H:%M:%S}",
-        f"Reiter: {SHEET_NAME}",
-        f"Primary Key (Spalten): {key_names}  - Format im Protokoll: Stellennummer | Personalnummer",
-        f"Kopierte Spalten: {copy_names}",
+        f"Bearbeitete Reiter: {', '.join(r['name'] for r in results)}",
         f"Duplikat-Verhalten: {DUPLICATE_POLICY}",
         "",
-        "ZUSAMMENFASSUNG",
-        "-" * 60,
-        f"  Zeilen in Ziel (empty):     {sum(len(r) for r in idx_t.values())}",
-        f"  Zeilen in Quelle (Freeze):  {sum(len(r) for r in idx_s.values())}",
-        f"  Zeilen uebernommen:         {len(assignments)}",
-        f"  Zellen geschrieben:         {cells_written}",
-        f"  Zeilen wegen Duplikat uebersprungen: {skipped_dups}",
-        f"  Formeln im Ziel durch Werte ersetzt: {formulas_overwritten}",
-        "",
     ]
-    log += block("NICHT GEMATCHT - nur in 'empty' (Ziel) vorhanden", unmatched_t, "empty")
-    log += block("NICHT GEMATCHT - nur in 'Trafo Freeze-Liste' (Quelle) vorhanden", unmatched_s, "Freeze")
-    log += block("DOPPELTE KEYS in 'empty' (Ziel)", dup_t, "empty")
-    log += block("DOPPELTE KEYS in 'Trafo Freeze-Liste' (Quelle)", dup_s, "Freeze")
-    if header_diffs:
-        log += [f"UNTERSCHIEDLICHE KOPFZEILEN in kopierten Spalten ({len(header_diffs)})", "-" * 60]
-        log += [f"  {d}" for d in header_diffs] + [""]
-    if shared_masters:
-        log += ["WARNUNG: Ueberschriebene Zellen waren Master einer 'Shared Formula' - abhaengige Formelzellen",
-                "ausserhalb des kopierten Bereichs koennen dadurch kaputt sein: " + ", ".join(shared_masters), ""]
+    for res in results:
+        log += sheet_log(res)
     if recalc_failed:
         log += ["HINWEIS: 'Neuberechnen beim Oeffnen' konnte nicht gesetzt werden (workbook.xml ungewoehnlich).",
                 "In Excel einmal Strg+Alt+Umschalt+F9 druecken.", ""]
-
     log_path.write_text("\n".join(log), encoding="utf-8")
 
-    print(f"Fertig: {len(assignments)} Zeilen uebernommen, "
-          f"{len(unmatched_t)} nur in Ziel, {len(unmatched_s)} nur in Quelle, "
-          f"{len(dup_t)} / {len(dup_s)} doppelte Keys (Ziel / Quelle).")
-    if header_diffs:
-        print(f"Warnung: {len(header_diffs)} abweichende Kopfzeilen-Zellen (siehe Protokoll).")
-    if shared_masters:
-        print("Warnung: Shared-Formula-Master ueberschrieben (siehe Protokoll).")
-    print(f"Ausgabe:   {filled_path}")
+    for res in results:
+        print(f"\n[{res['name']}] {len(res['assignments'])} Zeilen uebernommen, "
+              f"{len(res['unmatched_t'])} nur in Ziel, {len(res['unmatched_s'])} nur in Quelle, "
+              f"{len(res['dup_t'])} / {len(res['dup_s'])} doppelte Keys (Ziel / Quelle).")
+        if res["header_diffs"]:
+            print(f"  Warnung: {len(res['header_diffs'])} abweichende Kopfzeilen-Zellen (siehe Protokoll).")
+        if res["stats"]["shared_masters"]:
+            print("  Warnung: Shared-Formula-Master ueberschrieben (siehe Protokoll).")
+    print(f"\nAusgabe:   {filled_path}")
     print(f"Protokoll: {log_path}")
 
 
